@@ -1,0 +1,37 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Jan 19 14:28:24 2023
+
+@author: Martin
+"""
+This file specifies which packages are needed to run the optical tweezers gui and
+for what functions they are used. In certain cases a specific version of the package
+ is needed, then it is noted in the comment.
+Need the following packages:
+
+- pythonnet - version < 3 Suggest version 2.5.2, installed before installing clr. Note this is needed for thorlabs motors 
+and requires python version 3.8 or earlier. Install with "pip install pythonnet==2.5.2"
+- numpy - Saving,storing and manipulating data
+- pyqt6 - GUI
+- pyqtgraph - GUI oscilloscope functions
+- opencv-python - For writing videos
+- sk-video - Videos, certain formats
+- pypylon - Basler cameras
+- nicelib - Cameras for thorlabs python.
+- Instrumental-lib - Python instruments
+- Pillow - Image management, saving pictures
+- pyvisa - Inteface with older instruments, eg temperature controller
+- pyserial - Interface with serial communications with controllers
+- pipython - PI stage for controlling piezo stage
+- pywin32 - Thorlabs camera needs this
+- matplotlib - visualization in some widgets
+- skimage - threshold tracking, installed with pip install scikit-image
+- torch - Deep learning tracking
+- torhvision - Deep learning tracking
+- ulatralytics - YOLO tracking(best option for real-time tracking)
+
+Cupy is usefull, installed it with the following command.
+conda install -c conda-forge cupy cudatoolkit=11.3
+# Make sure to check which cuda version you have before installing!
+
+# run this command to install ffmpeg properly : "conda install ffmpeg -c mrinaljain17"
