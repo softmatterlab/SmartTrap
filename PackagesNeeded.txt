@@ -22,14 +22,16 @@ and requires python version 3.8 or earlier. Install with "pip install pythonnet=
 - Pillow - Image management, saving pictures
 - pyvisa - Inteface with older instruments, eg temperature controller
 - pyserial - Interface with serial communications with controllers
-- pipython - PI stage for controlling piezo stage
+- pipython - PI stage for controlling piezo stage - Mostly not needed
 - pywin32 - Thorlabs camera needs this
 - matplotlib - visualization in some widgets
-- skimage - threshold tracking, installed with pip install scikit-image
+- scikit-image - threshold tracking, installed with pip install scikit-image
 - torch - Deep learning tracking
 - torhvision - Deep learning tracking
-- ulatralytics - YOLO tracking(best option for real-time tracking)
+- ultralytics - YOLO tracking(best option for real-time tracking)
+#- clr
 
+run "pip install thorlabs_tsi_camera_python_sdk_package.zip", file located in Main branch\Suporting Software\Scientific Camera Interfaces\SDK\Python Toolkit
 Cupy is usefull, installed it with the following command.
 conda install -c conda-forge cupy cudatoolkit=11.3
 # Make sure to check which cuda version you have before installing!

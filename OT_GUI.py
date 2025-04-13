@@ -7,6 +7,9 @@ Created on Wed Oct 19 15:50:13 2022
 import sys
 import cv2 # Certain versions of this won't work
 import pickle
+import math
+
+# TODO ensure that pressed buttons appears pressed when they are pressed. Does not do so with latest pyqt
 
 from PyQt6.QtWidgets import (
     QMainWindow, QApplication,
@@ -16,7 +19,7 @@ from PyQt6.QtWidgets import (
 )
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, pyqtSlot, QRunnable, QObject, QPoint, QRect, QTimer
-from PyQt6.QtGui import QPixmap, QImage, QPainter, QBrush, QColor, QAction, QDoubleValidator, QPen, QIntValidator, QKeySequence, QFont
+from PyQt6.QtGui import QPixmap, QImage, QPainter, QBrush, QColor, QAction, QDoubleValidator, QPen, QIntValidator, QKeySequence, QFont, QPolygon
 
 # from pyqtgraph import PlotWidget, plot
 # import pyqtgraph as pg
@@ -53,9 +56,11 @@ from PullingProtocolWidget import PullingProtocolWidget
 from StepperObjective import ObjectiveStepperController, ObjectiveStepperControllerToolbar
 from MicrofluidicsPumpController import MicrofluidicsControllerWidget, ElvesysMicrofluidicsController, ConfigurePumpWidget
 
-import AutoControllerV2 as AutoController
+import AutocontrollerV3 as AutoController
 import LaserController
 
+# Using thorlabs camera
+from ThorlabsScientificCameras import ThorlabsScientificCamera as TSC
 
 # TODO put the camera window into the main window in the same manner as the other widgets. Also add the force and postiion
 # windows below the main window as there is often space there to do stuff.
@@ -127,7 +132,10 @@ class Worker(QThread):
 
     def draw_particle_positions(self, centers, pen=None, radius=250, show_z_info=False):
         # TODO add function also for crosshair to help with alignment.
-        rx = int(radius/self.c_p['image_scale'])
+        try:
+            rx = int(radius/self.c_p['image_scale'])
+        except:
+            rx = 20
         ry = rx
         font_size = int(rx/4)
 
@@ -145,7 +153,7 @@ class Worker(QThread):
                 rx = int(2*self.c_p['predicted_particle_radii'][idx]/self.c_p['image_scale'])
                 ry = rx
             except Exception as E:
-                rx = int(radius/self.c_p['image_scale'])
+                rx = int(240/self.c_p['image_scale'])
                 ry = rx
                 pass
 
@@ -187,7 +195,10 @@ class Worker(QThread):
             radius = radii[0]
         else:
             radius = 250
-        rx = int(100/self.c_p['image_scale'])
+        try:
+            rx = int(100/self.c_p['image_scale'])
+        except:
+            rx=20
         ry = rx
         font_size = int(rx/4)
 
@@ -205,12 +216,14 @@ class Worker(QThread):
                 rx = int(2*radii[idx]/self.c_p['image_scale'])
                 ry = rx
             except Exception as E:
-                rx = int(radius/self.c_p['image_scale'])
+                rx = int(250/self.c_p['image_scale'])
                 ry = rx
                 pass
-
-            x = int(pos[0]/ self.c_p['image_scale'])
-            y = int(pos[1]/ self.c_p['image_scale'])
+            try:
+                x = int(pos[0] / self.c_p['image_scale'])
+                y = int(pos[1] / self.c_p['image_scale'])
+            except IndexError as IE:
+                return
 
             self.qp.drawEllipse(x-int(rx/2)-1, y-int(ry/2)-1, rx, ry)
                     # Check if information display is enabled
@@ -259,14 +272,10 @@ class Worker(QThread):
             self.image += int(self.c_p['image_offset'])
             self.image = np.uint8(self.image)
             
-        if self.c_p['image_gain'] != 1:
-            # TODO unacceptably slow
-            pass
-            self.image = np.uint8((self.image*self.c_p['image_gain']))
-
-        #self.image = np.uint8(self.image)
-
     def draw_central_circle(self):
+        """
+        Draws a circle at the center of the image.
+        """
         self.blue_pen.setColor(QColor('blue'))
         cx = int((self.c_p['camera_width']/2 - self.c_p['AOI'][0])/self.c_p['image_scale'])
         cy = int((self.c_p['camera_height']/2 - self.c_p['AOI'][2])/self.c_p['image_scale'])
@@ -274,17 +283,99 @@ class Worker(QThread):
         ry=50
         self.qp.drawEllipse(cx-int(rx/2)-1, cy-int(ry/2)-1, rx, ry)
 
+    def draw_lasers(self):
+        """
+        Marks the laser positions on the image using two different crosses
+
+        """
+
+        length = 10  # half-length of the cross arms
+        self.qp.setPen(self.red_pen)
+        x = int((self.c_p['laser_position_A_predicted'][0] - self.c_p['AOI'][0]) / self.c_p['image_scale'])
+        y = int((self.c_p['laser_position_A_predicted'][1] - self.c_p['AOI'][2]) / self.c_p['image_scale'])
+        # Define the lines for the cross
+        self.qp.drawLine(x - length, y, x + length, y)
+        # Draw the vertical line of the cross
+        self.qp.drawLine(x, y - length, x, y + length)
+        
+        self.qp.setPen(self.blue_pen)
+        x = int((self.c_p['laser_position_B_predicted'][0] - self.c_p['AOI'][0]) / self.c_p['image_scale'])
+        y = int((self.c_p['laser_position_B_predicted'][1] - self.c_p['AOI'][2]) / self.c_p['image_scale'])
+        # Draw the cross
+        self.qp.drawLine(x - length, y, x + length, y)
+        # Draw the vertical line of the cross
+        self.qp.drawLine(x, y - length, x, y + length)
+
+    def draw_force(self):
+
+        if not self.data_channels['particle_trapped'].get_data(1)[0]:
+            return
+        # TODO deal with the case when the force leaves the frame
+        x = self.c_p['Trapped_particle_position'][0] / self.c_p['image_scale']
+        y = self.c_p['Trapped_particle_position'][1] / self.c_p['image_scale']
+        start_point = QPoint(int(x), int(y))
+        xf = 3 * self.data_channels['F_total_X'].get_data(1)[0] / self.c_p['image_scale']
+        yf = -3 * self.data_channels['F_total_Y'].get_data(1)[0] / self.c_p['image_scale']
+        x_end = int(x+xf)
+        y_end = int(y+yf)
+        end_point = QPoint(x_end, y_end)
+        self.qp.setPen(self.blue_pen)
+        self.qp.drawLine(start_point, end_point)
+
+        # Coordinates for the arrowhead
+        angle = math.atan2(yf, xf)
+        arrowhead_length = 10/ self.c_p['image_scale']
+        angle1 = angle + math.pi / 6  # Angle offset for one side of the arrowhead
+        angle2 = angle - math.pi / 6  # Angle offset for the other side
+
+        x1 = x_end - arrowhead_length * math.cos(angle1)
+        y1 = y_end - arrowhead_length * math.sin(angle1)
+        x2 = x_end - arrowhead_length * math.cos(angle2)
+        y2 = y_end - arrowhead_length * math.sin(angle2)
+
+        # Create the arrowhead polygon
+        arrow_head = QPolygon([
+            end_point,
+            QPoint(int(x1), int(y1)),
+            QPoint(int(x2), int(y2))
+        ])
+
+        # Draw the arrowhead
+        self.qp.drawPolygon(arrow_head)
+
+        
+
+    def get_boring_particles(self):
+        """
+        Extracts the particles that are not the trapped particle or the pipette particle, returns the index
+        """
+
+        positions = np.copy(self.c_p['predicted_particle_positions'])
+        #radii = np.copy(self.c_p['predicted_particle_radii'])
+        #info = np.copy(self.c_p['z-predictions'])
+        if len(positions) == 0:
+            return None
+        mask = np.ones(len(positions), dtype=bool)
+        
+        self.data_channels['particle_trapped'].get_data(1)[0]
+        if self.data_channels['particle_trapped'].get_data(1)[0]:
+            target_point = self.c_p['Trapped_particle_position'][0:2]
+            distances = np.linalg.norm(positions - target_point, axis=1)
+            index_of_closest = np.argmin(distances)
+            mask[index_of_closest] = False
+
+        if self.c_p['particle_in_pipette'] and self.c_p['locate_pipette'] and self.c_p['pipette_located']:        
+            target_point = self.c_p['pipette_particle_location'][0:2]
+            distances = np.linalg.norm(positions - target_point, axis=1)
+            index_of_closest = np.argmin(distances)
+            mask[index_of_closest] = False
+
+        return mask
+
     def run(self):
 
         # Initialize pens to draw on the images
-        """
-        self.blue_pen = QPen()
-        self.blue_pen.setColor(QColor('blue'))
-        self.blue_pen.setWidth(2)
-        self.red_pen = QPen()
-        self.red_pen.setColor(QColor('red'))
-        self.red_pen.setWidth(2)
-        """
+        
         while True:
             if self.test_mode:
                 # TODO have this add data channels if they are not already created.
@@ -292,7 +383,9 @@ class Worker(QThread):
 
             if self.c_p['image'] is not None:
                 self.image = np.array(self.c_p['image'])
-            #else:
+            else:
+                print("Frame missed!")
+                continue
             #    print("Frame missed!")
             W, H = self.c_p['frame_size']
             self.c_p['image_scale'] = max(self.image.shape[1]/W, self.image.shape[0]/H)
@@ -338,46 +431,32 @@ class Worker(QThread):
             if self.c_p['tracking_on'] and self.c_p['draw_particles']:       
                 info = None
                 info_labels = None
-                               
-                if not self.c_p['draw_TnP_particles']:
 
-                    if self.c_p['draw_z_text']:
-                        info = self.c_p['z-predictions']
-                        info_labels = 'z: '
-                    self.draw_particle_positions_new(
-                        centers=self.c_p['predicted_particle_positions'],
-                        radii=self.c_p['predicted_particle_radii'],
-                        info=info,
-                        info_labels=info_labels)
-                else:
-                    positions = []
-                    radii = []
-                    z_positions = []
-                    # Extract positions that are not close to the trapped particle
-                    for idx, pos in enumerate(self.c_p['predicted_particle_positions']):
-                        dx1 = pos[0]-self.c_p['Trapped_particle_position'][0]
-                        dy1 = pos[1]-self.c_p['Trapped_particle_position'][1]
-                        dx2 = pos[0]-self.c_p['pipette_particle_location'][0]
-                        dy2 = pos[1]-self.c_p['pipette_particle_location'][1]
-                        if dx1**2 + dy1**2 < 10 and dx2**2+dy2**2 < 10:
-                            positions.append(pos)
-                            radii.append(self.c_p['predicted_particle_radii'][idx])
-                            z_positions.append(self.c_p['z-predictions'][idx])
-                    if self.c_p['draw_z_text']:
-                        info = z_positions
-                        info_labels = 'z: '
-                    self.draw_particle_positions_new(
-                        centers=positions,
-                        radii=radii,
-                        info=info,
-                        info_labels=info_labels)
-
+                # Check if ther are particles in the trap/pipette if that is the case then don't draw them in red.                               
+                indices = self.get_boring_particles()
+                #if self.c_p['draw_z_text']:
+                try:
+                    info = self.c_p['z-predictions'][indices]
+                    centers=self.c_p['predicted_particle_positions'][indices]
+                    radii=self.c_p['predicted_particle_radii'][indices]
+                except Exception as e:
+                    info = self.c_p['z-predictions']
+                    centers = self.c_p['predicted_particle_positions']
+                    radii = self.c_p['predicted_particle_radii']
+                info_labels = 'z: '
+                if not self.c_p['draw_z_text']:
+                    info = None
+                    info_labels = None
+                self.draw_particle_positions_new(
+                    centers=centers,
+                    radii=radii,
+                    info=info,
+                    info_labels=info_labels)
+                
             if self.c_p['draw_TnP_particles']:
 
                 if self.data_channels['particle_trapped'].get_data(1)[0]:
-                    # gp = QPen()
-                    # gp.setColor(QColor('green'))
-                    # gp.setWidth(3)
+                    
                     info = None
                     info_labels = None
                     if self.c_p['draw_z_text']:
@@ -386,27 +465,29 @@ class Worker(QThread):
                     self.draw_particle_positions_new(
                         [self.c_p['Trapped_particle_position'][0:2]],
                         radii=[self.c_p['Trapped_particle_position'][3]],
-                        pen=self.green_pen,
+                        pen=self.blue_pen,
                         info=info,
                         info_labels=info_labels,)
+                    if self.c_p['draw_force']:
+                        self.draw_force() # TODO add toggle for this
                 
                 if self.c_p['particle_in_pipette'] and self.c_p['locate_pipette'] and self.c_p['pipette_located']:
-                    # tmp_pen = QPen()
-                    # tmp_pen.setColor(QColor('blue'))
-                    # tmp_pen.setWidth(3)
+  
                     info = None
                     info_labels = None
                     if self.c_p['draw_z_text']:
-                        info = [self.c_p['Trapped_particle_position'][2]]
+                        info = [self.c_p['pipette_particle_location'][2]]
                         info_labels = 'z: '
                     self.draw_particle_positions_new(
                         [self.c_p['pipette_particle_location'][0:2]],
                         radii=[self.c_p['pipette_particle_location'][3]],
-                        pen=self.blue_pen,
+                        pen=self.green_pen,
                         info=info,
                         info_labels= info_labels,
                         )
                 
+            if self.c_p['draw_lasers']:
+                self.draw_lasers()
             self.qp.end()
             self.changePixmap.emit(picture)
 
@@ -428,9 +509,16 @@ class MainWindow(QMainWindow):
         self.CameraThread = None
         try:
             camera = None
-            camera = BaslerCameras.BaslerCamera()
+            if self.c_p['camera_type'] == "Thorlabs":
+                print("Thorlabs camera selected")
+                camera = TSC()
+            else:
+                print("Basler camera selected")
+                camera = BaslerCameras.BaslerCamera()
             # camera if there is no camera connected.
             # camera = ThorlabsCameras.ThorlabsCamera()
+
+
             
             if camera is not None:
                 self.CameraThread = CameraThread(self.c_p, camera)
@@ -580,10 +668,11 @@ class MainWindow(QMainWindow):
         print("Tool set to ", tool_no)
 
     def set_gain(self, gain):
+        gain = float(self.gain_LineEdit.text())
         try:
-            g = min(float(gain), 255)
-            self.c_p['image_gain'] = g
-            print(f"Gain is now {gain}")
+            #g = min(float(gain), 255)
+            self.c_p['image_gain'] = gain
+            self.c_p['new_settings_camera'] = [True, 'gain']
         except ValueError:
             # Harmless, someone deleted all the numbers in the line-edit
             pass
@@ -656,8 +745,9 @@ class MainWindow(QMainWindow):
     def start_saving(self):
         self.start_idx = self.data_channels['PSD_A_P_X'].index
         self.start_idx_motors = self.data_channels['Motor_x_pos'].index # Fewer data points for motors
+        self.start_idx_prediction = self.data_channels['trapped_particle_x_position'].index
         self.saving = True
-        self.data_idx += 1
+        
         print("Saving started")
 
     async def async_stop_save(self):
@@ -676,27 +766,48 @@ class MainWindow(QMainWindow):
         print("Saving stopped")
         self.stop_idx = self.data_channels['PSD_A_P_X'].index
         self.stop_idx_motors = self.data_channels['Motor_x_pos'].index
+        self.stop_idx_prediction = self.data_channels['trapped_particle_x_position'].index
         sleep(0.1) # Waiting for all channels to reach this point
         data = {}
+
+        # QuickFIx to error which happens if one of the channels is not sampling correctly.
+        if self.start_idx == self.stop_idx:
+            self.stop_idx = self.stop_idx + 1
+
+        if self.start_idx_motors == self.stop_idx_motors:
+            self.stop_idx_motors = self.stop_idx_motors + 1
+
+        if self.start_idx_prediction == self.stop_idx_prediction:
+            self.stop_idx_prediction = self.stop_idx_prediction + 1
+
          # TODO make sure that it saves continously and not just once at the end...
         for channel in self.data_channels:
             if self.data_channels[channel].saving_toggled:
+                # Handle the different rates at which the channels are sampled to get the right data to be saved.
                 if channel in self.c_p['multi_sample_channels'] or channel in self.c_p['derived_PSD_channels']:
                     if self.start_idx < self.stop_idx:
                         data[channel] = self.data_channels[channel].data[self.start_idx:self.stop_idx]
                     else:
                         data[channel] = np.concatenate([self.data_channels[channel].data[self.start_idx:],
                                                         self.data_channels[channel].data[:self.stop_idx]])
+
+                elif channel in self.c_p['prediction_channels']:
+                    if self.start_idx_prediction < self.stop_idx_prediction:
+                        data[channel] = self.data_channels[channel].data[self.start_idx_prediction:self.stop_idx_prediction]
+                    else:
+                        data[channel] = np.concatenate([self.data_channels[channel].data[self.start_idx_prediction:],
+                                                        self.data_channels[channel].data[:self.stop_idx_prediction]])
                 else:
                     if self.start_idx_motors < self.stop_idx_motors:
                         data[channel] = self.data_channels[channel].data[self.start_idx_motors:self.stop_idx_motors]
                     else:
                         data[channel] = np.concatenate([self.data_channels[channel].data[self.start_idx_motors:],
                                                         self.data_channels[channel].data[:self.stop_idx_motors]])
-
+        print(f"Indices used for saving: {self.start_idx}, {self.stop_idx}, {self.start_idx_motors}, {self.stop_idx_motors}, {self.start_idx_prediction}, {self.stop_idx_prediction}")
         filename = self.c_p['recording_path'] + '/' + self.c_p['filename'] + str(self.data_idx)
         with open(filename, 'wb') as f:
                 pickle.dump(data, f)
+        self.data_idx += 1 # Moved here from start saving
 
     def save_data_to_dict(self):
 
@@ -909,19 +1020,23 @@ class MainWindow(QMainWindow):
         self.open_positions_window.setCheckable(False)
         window_menu.addAction(self.open_positions_window)
 
-
-        # TODO add a window for default stretching analysis(poistion vs force)
         self.open_force_window = QAction("Force PSDs", self)
         self.open_force_window.setToolTip("Open window for force PSDs.\n This is a specially configured version of the live plotter")
         self.open_force_window.triggered.connect(self.open_Force_PSD_window)
         self.open_force_window.setCheckable(False)
         window_menu.addAction(self.open_force_window)
 
-        self.force_distance_window_action = QAction("Force distance curve", self)
-        self.force_distance_window_action.setToolTip("Opens a plotting window with average laser position reading and y-force")
-        self.force_distance_window_action.triggered.connect(self.open_Force_Distance_window)
+        self.force_distance_window_action = QAction("Force distance curve - Y", self)
+        self.force_distance_window_action.setToolTip("Opens a plotting window with laser position reading and y-force")
+        self.force_distance_window_action.triggered.connect(self.open_Force_Distance_window_Y)
         self.force_distance_window_action.setCheckable(False)
         window_menu.addAction(self.force_distance_window_action)
+
+        self.force_distance_window_action_x = QAction("Force distance curve - X", self)
+        self.force_distance_window_action_x.setToolTip("Opens a plotting window with laser position reading and x-force")
+        self.force_distance_window_action_x.triggered.connect(self.open_Force_Distance_window_X)
+        self.force_distance_window_action_x.setCheckable(False)
+        window_menu.addAction(self.force_distance_window_action_x)
         
         self.open_motor_window = QAction("Minitweezers motor window", self)
         self.open_motor_window.setToolTip("Open window for manual motor control.")
@@ -964,6 +1079,12 @@ class MainWindow(QMainWindow):
         self.auto_controller_action.triggered.connect(self.openAutoControllerWindow)
         self.auto_controller_action.setCheckable(False)
         window_menu.addAction(self.auto_controller_action)
+
+        self.open_stokes_window = QAction("Stokes test window", self)
+        self.open_stokes_window.setToolTip("Opens a window for the performing the stokes test autonomously.")
+        self.open_stokes_window.triggered.connect(self.openStokesWindow)
+        self.open_stokes_window.setCheckable(False)
+        window_menu.addAction(self.open_stokes_window)
 
         self.open_laser_window_action = QAction("Laser controller", self)
         self.open_laser_window_action.setToolTip("Opens a window for interfacing the laser controller.")
@@ -1077,9 +1198,14 @@ class MainWindow(QMainWindow):
             self.record_action.setToolTip("Turn OFF recording.\n can also be toggled with CTRL+R")
         else:
             self.record_action.setToolTip("Turn ON recording.\n can also be toggled with CTRL+R")
+        self.record_action.setChecked(self.c_p['recording'])
 
     def toggle_tracking_view(self):
         self.c_p['draw_particles'] = not self.c_p['draw_particles']
+        self.c_p['draw_TnP_particles'] = not self.c_p['draw_TnP_particles'] # TODO check if this addition is sufficient to clearly mark the trapped and pipette particle.
+
+    def toggle_draw_lasers(self):
+        self.c_p['draw_lasers'] = not self.c_p['draw_lasers']
 
     def toggle_pipette_view(self):
         self.c_p['draw_pipette'] = not self.c_p['draw_pipette']
@@ -1090,11 +1216,16 @@ class MainWindow(QMainWindow):
     def toggle_TnP_view(self):
         self.c_p['draw_TnP_particles'] = not self.c_p['draw_TnP_particles']
 
-    def snapshot(self):
+    def toggle_force_view(self):
+        self.c_p['draw_force'] = not self.c_p['draw_force']
+
+    def snapshot(self, filename_save=None):
         # Captures a snapshot of what the camera is viewing and saves that
         # in the fileformat specified by the image_format parameter.
+        if filename_save is None:
+            filename_save = self.c_p['filename']
         idx = str(self.c_p['image_idx'])
-        filename = self.c_p['recording_path'] + '/'+self.c_p['filename']+'image_' + idx +'.'+\
+        filename = self.c_p['recording_path'] + '/'+filename_save+'image_' + idx +'.'+\
             self.c_p['image_format']
         if self.c_p['image_format'] == 'npy':
             np.save(filename[:-4], self.c_p['image'])
@@ -1174,13 +1305,24 @@ class MainWindow(QMainWindow):
                                           aspect_locked=True, grid_on=True, title='Force PSDs'))
         self.plot_windows[-1].show()
 
-    def open_Force_Distance_window(self):
+    def open_Force_Distance_window_Y(self):
         if self.plot_windows is None:
             self.plot_windows = []
         # TODO fix that A and B are mixed up here.
         self.plot_windows.append(PlotWindow(self.c_p, data=self.data_channels,
                                           x_keys=['Position_Y'], y_keys=['F_total_Y'],
-                                          aspect_locked=False, grid_on=True, title='Force vs distance',
+                                          aspect_locked=False, grid_on=True, title='Force-distance curve',
+                                          default_plot_length=200_000))
+        self.plot_windows[-1].show()
+
+
+    def open_Force_Distance_window_X(self):
+        if self.plot_windows is None:
+            self.plot_windows = []
+        # TODO fix that A and B are mixed up here.
+        self.plot_windows.append(PlotWindow(self.c_p, data=self.data_channels,
+                                          x_keys=['Position_X'], y_keys=['F_total_X'],
+                                          aspect_locked=False, grid_on=True, title='Force-distance curve',
                                           default_plot_length=200_000))
         self.plot_windows[-1].show()
 
@@ -1199,6 +1341,10 @@ class MainWindow(QMainWindow):
     def openAutoControllerWindow(self):
         self.auto_controller_window = AutoController.AutoControlWidget(self.c_p, self.data_channels)#, MainWindow=self)
         self.auto_controller_window.show()
+
+    def openStokesWindow(self):
+        self.stokes_test_window = AutoController.StokesTestWidget(self.c_p, self.data_channels)
+        self.stokes_test_window.show()
 
     def DataWindow(self):
         self.data_window= SaveDataWindow(self.c_p, self.data_channels)
@@ -1255,7 +1401,6 @@ def create_camera_toolbar_external(main_window):
     main_window.record_action.setShortcut('Ctrl+R')
     main_window.record_action.triggered.connect(main_window.ToggleRecording)
     main_window.record_action.setShortcut(QKeySequence(Qt.Modifier.CTRL | Qt.Key.Key_R))
-
     main_window.record_action.setCheckable(True)
 
     main_window.snapshot_action = QAction("Snapshot", main_window)
@@ -1288,11 +1433,23 @@ def create_camera_toolbar_external(main_window):
     main_window.toggle_pipette_view_action.triggered.connect(main_window.toggle_pipette_view)
     main_window.camera_toolbar.addAction(main_window.toggle_pipette_view_action)
 
+    main_window.toggle_laser_view_action = QAction("View laser position", main_window)
+    main_window.toggle_laser_view_action.setToolTip("Toggle if lasers should be drawn, can be on/off")
+    main_window.toggle_laser_view_action.setCheckable(True)
+    main_window.toggle_laser_view_action.triggered.connect(main_window.toggle_draw_lasers)
+    main_window.camera_toolbar.addAction(main_window.toggle_laser_view_action)
+
     main_window.toggle_z_text_action = QAction("Toggle z text", main_window)
     main_window.toggle_z_text_action.setToolTip("Toggle if z text should be drawn, can be on/off")
     main_window.toggle_z_text_action.setCheckable(True)
     main_window.toggle_z_text_action.triggered.connect(main_window.toggle_z_text)
     main_window.camera_toolbar.addAction(main_window.toggle_z_text_action)
+
+    main_window.draw_force_action = QAction("Draw force", main_window)
+    main_window.draw_force_action.setToolTip("Toggle if force acting on the trapped particle should be drawn, can be on/off")
+    main_window.draw_force_action.setCheckable(True)
+    main_window.draw_force_action.triggered.connect(main_window.toggle_force_view)
+    main_window.camera_toolbar.addAction(main_window.draw_force_action)
     
     main_window.exposure_time_LineEdit = QLineEdit()
     main_window.exposure_time_LineEdit.setValidator(QDoubleValidator(0.99,99.99,2))
@@ -1331,6 +1488,20 @@ def create_camera_toolbar_external(main_window):
     main_window.toggle_data_record_action.triggered.connect(main_window.record_data)
     main_window.toggle_data_record_action.setShortcut(QKeySequence(Qt.Modifier.CTRL | Qt.Key.Key_D))
     main_window.camera_toolbar.addAction(main_window.toggle_data_record_action)
+    main_window.setStyleSheet("""
+            QToolButton:pressed {
+               background-color: lightblue; /* Temporary color on click */
+            }
+            QToolButton:checked {
+                background-color: lightgreen;
+            }
+            QToolButton {
+                background-color: lightgray;
+                border: 1px solid black;
+                border-radius: 1px;
+                padding: 1px;
+            }
+        """)
 
 
 if __name__ == '__main__':

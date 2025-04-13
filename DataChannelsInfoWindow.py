@@ -31,40 +31,7 @@ class CurrentValueWindow(QWidget):
 
         self.timer.start()
         self.setLayout(self.vBox)   
-    '''
-    def CreateTable(self):
 
-        self.table = QTableWidget(len(self.data_channels)+1, 6)
-        self.table.setHorizontalHeaderLabels(["Channel", "Value", "Mean", "Standard dev", "Unit", "Save"])
-
-        for idx, channel in enumerate(self.data_channels):
-            self.table.setItem(idx, 0, QTableWidgetItem(f"{self.data_channels[channel].name}"))
-            self.table.setItem(idx, 1, QTableWidgetItem(f"{self.data_channels[channel].get_data(1)}"))
-            data = self.data_channels[channel].get_data(self.c_p['averaging_interval'])
-            if data is not None and len(data) > 1:
-                self.table.setItem(idx, 2, QTableWidgetItem(f"{np.mean(data)}"))
-            else:
-                self.table.setItem(idx, 2, QTableWidgetItem(""))
-
-            if data is not None and len(data) > 1:
-                self.table.setItem(idx, 3, QTableWidgetItem(f"{np.std(data)}"))
-            else:
-                self.table.setItem(idx, 3, QTableWidgetItem(""))
-            self.table.setItem(idx,4, QTableWidgetItem(f"{self.data_channels[channel].unit}"))
-
-            # Create a QCheckBox, connect it to the toggle_save method and add it to the table
-            save_checkbox = QCheckBox()
-            save_checkbox.stateChanged.connect(lambda state, ch=channel: self.toggle_save(state, ch))
-            save_checkbox.setChecked(self.data_channels[channel].saving_toggled)
-
-            save_checkbox.setStyleSheet("""
-                QCheckBox::indicator {
-                    width: 30px;
-                    height: 30px;
-                }
-                """)
-            self.table.setCellWidget(idx, 5, save_checkbox)
-    '''
     def CreateTable(self):
 
         self.table = QTableWidget(len(self.data_channels)+2, 6)  # +2 now for the fps row and a buffer

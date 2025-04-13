@@ -7,9 +7,9 @@ Created on Mon Jan  9 14:48:59 2023
 # TODO make sure that image orientations are correct and that we are using GPU.
 import torch
 import torch.nn as nn
-from yolov5 import YOLOv5
-from ultralytics import YOLO
-from models.experimental import attempt_load  # This is specific to YOLOv5
+#from yolov5 import YOLOv5
+#from ultralytics import YOLO
+#from models.experimental import attempt_load  # This is specific to YOLOv5
 
 import cv2
 import sys
@@ -32,7 +32,7 @@ from PyQt6.QtCore import Qt, QTimer
 import pyqtgraph as pg
 
 sys.path.append('C:/Users/Martin/OneDrive/PhD/AutOT/') # TODO move this to same folder as this file
-
+#sys.path.append("C:/Users/Martin/OneDrive - University of Gothenburg/PhD/OT software/YOLO_training/YOLO_V9/yolov9") # Path to yolov9 package installation
 import find_particle_threshold as fpt
 from unet_model import UNet, UNetZ_split
 from CustomMouseTools import MouseInterface
@@ -425,6 +425,7 @@ class DeepLearningAnalyserLDS(Thread):
                     crop = self.c_p['image'][y - width:y + width, x - width:x + width].astype(np.float32)
                     crop /= 2 * np.std(crop)
                     crop -= np.mean(crop)
+                    # crop /= 20 # Changed here
                     crop = np.reshape(crop, (128, 128, 1))
                     crops.append(crop)
                 except ValueError as e:
@@ -703,7 +704,7 @@ class DeepLearningControlWidget(QWidget):
         print(f"Opening network {network_name[0]}")
         try:
             #self.c_p['z-model'] = torch.load(network_name[0])
-            model = torch.hub.load('.', 'custom', path=network_name[0], source='local') 
+            model = load_yolov5_model(network_name[0]) #torch.hub.load('.', 'custom', path=network_name[0], source='local') 
             self.c_p['model'] = model
         except Exception as e:
             print(e)

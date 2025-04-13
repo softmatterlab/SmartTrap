@@ -7,6 +7,47 @@ from scipy.interpolate import griddata
 
 #import timeit
 
+def create_interpolator(x_grid, y_grid, z_values, method='linear'):
+    """
+    Creates an interpolator function for irregularly sampled 2D grid data.
+    
+    Parameters:
+    x_grid (numpy.ndarray): 1D array of x-coordinates.
+    y_grid (numpy.ndarray): 1D array of y-coordinates.
+    z_values (numpy.ndarray): 2D array of z-values corresponding to (x, y) coordinates.
+    method (str): Interpolation method ('linear', 'nearest', 'cubic'). Default is 'cubic'.
+    
+    Returns:
+    function: Interpolator function that takes (x, y) coordinates and returns interpolated z-values.
+    """
+    # Flatten the input grids
+    points = np.c_[x_grid.ravel(), y_grid.ravel()]
+    values = z_values.ravel()
+
+    def interpolator(x, y):
+        """
+        Interpolates the z-value for given (x, y) coordinates.
+        
+        Parameters:
+        x (float or numpy.ndarray): x-coordinate(s) for interpolation.
+        y (float or numpy.ndarray): y-coordinate(s) for interpolation.
+        
+        Returns:
+        numpy.ndarray: Interpolated z-value(s).
+        """
+        # Interpolate the data
+        z = griddata(points, values, (x, y), method=method)
+        
+        # Identify NaNs and replace them with nearest neighbor interpolation
+        nan_mask = np.isnan(z)
+        if np.any(nan_mask):
+            z[nan_mask] = griddata(points, values, (x[nan_mask], y[nan_mask]), method='nearest')
+        
+        return z
+
+    return interpolator
+
+
 
 """
 Idea behind using a separate process is to have the process continously read the input data and then put that into shared arrays/dictionaries
@@ -14,6 +55,24 @@ where a thread of the main process access and uses it. Basically the new process
 is read by the new process. Perhaps not the most elegant solution but it is one that requires relatively few changes to the code.
 
 """
+
+
+def calculate_polynomial_coefficients(x,y,z):
+    x = x.flatten()
+    y = y.flatten()
+    z = z.flatten()
+
+    # Create the design matrix for a 2D quadratic (degree 2) polynomial: f(x, y) = a + b*x + c*y + d*x^2 + e*xy + f*y^2
+    X = np.column_stack([np.ones(x.shape), x, y, x**2, x*y, y**2])
+
+    # Fit the polynomial using least squares
+    coeffs, _, _, _ = np.linalg.lstsq(X, z, rcond=None)
+    return coeffs
+def poly2d(coeffs, x, y):
+    return (coeffs[0] + coeffs[1]*x + coeffs[2]*y + 
+            coeffs[3]*x**2 + coeffs[4]*x*y + coeffs[5]*y**2)
+
+
 class PortentaCommsProcess(Process):
 
     def __init__(self, portenta_data, outdata, com_port, running):
@@ -266,13 +325,13 @@ class PortentaComms(Thread):
         # Potentially only make the calculations on demand...
 
         # Calculate the force from the PSD readings
-        if self.APX_interpolator is not None:
-            self.calculate_compensated_force(chunk_length)
-        else:
-            self.data_channels['F_A_X'].put_data(self.data_channels['PSD_A_F_X'].get_data(chunk_length)*self.c_p['PSD_to_force'][0])
-            self.data_channels['F_A_Y'].put_data(self.data_channels['PSD_A_F_Y'].get_data(chunk_length)*self.c_p['PSD_to_force'][1])
-            self.data_channels['F_B_X'].put_data(self.data_channels['PSD_B_F_X'].get_data(chunk_length)*self.c_p['PSD_to_force'][2])
-            self.data_channels['F_B_Y'].put_data(self.data_channels['PSD_B_F_Y'].get_data(chunk_length)*self.c_p['PSD_to_force'][3])
+        #if self.APX_interpolator is not None: # THis is an odd thing to do, maybe with the polynomial interpolation it is better.
+        #    self.calculate_compensated_force(chunk_length)
+        #else:
+        self.data_channels['F_A_X'].put_data(self.data_channels['PSD_A_F_X'].get_data(chunk_length)*self.c_p['PSD_to_force'][0])
+        self.data_channels['F_A_Y'].put_data(self.data_channels['PSD_A_F_Y'].get_data(chunk_length)*self.c_p['PSD_to_force'][1])
+        self.data_channels['F_B_X'].put_data(self.data_channels['PSD_B_F_X'].get_data(chunk_length)*self.c_p['PSD_to_force'][2])
+        self.data_channels['F_B_Y'].put_data(self.data_channels['PSD_B_F_Y'].get_data(chunk_length)*self.c_p['PSD_to_force'][3])
 
         self.data_channels['F_A_Z'].put_data(self.data_channels['Photodiode/PSD SUM A'].get_data(chunk_length)*self.c_p['Photodiode_sum_to_force'][0])
         self.data_channels['F_B_Z'].put_data(self.data_channels['Photodiode/PSD SUM B'].get_data(chunk_length)*self.c_p['Photodiode_sum_to_force'][1])

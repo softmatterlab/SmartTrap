@@ -9,7 +9,7 @@ import os
 import cv2 # Certain versions of this won't work
 import tkinter
 from tkinter import simpledialog
-from time import sleep, strftime, perf_counter
+from time import sleep, strftime, perf_counter, time
 from threading import Thread
 from copy import copy, deepcopy
 # from queue import Queue
@@ -105,6 +105,8 @@ class CameraInterface(metaclass=abc.ABCMeta):
                 callable(subclass.set_exposure_time) and
                 hasattr(subclass, 'set_frame_rate') and
                 callable(subclass.set_frame_rate) and
+                hasattr(subclass, 'set_gain') and
+                callable(subclass.set_gain) and
                 hasattr(subclass, 'capture_image') and
                 callable(subclass.capture_image) or
                 NotImplemented)
@@ -149,9 +151,9 @@ class CameraThread(Thread):
 
         # TODO remove temporary solution
         
-        self.camera.cam.AcquisitionFrameRateEnable = False
+        #self.camera.cam.AcquisitionFrameRateEnable = False
         # self.camera.cam.AcquisitionFrameRate = 11 
-        print("Framrate ", self.camera.cam.ResultingFrameRate())
+        #print("Framrate ", self.camera.cam.ResultingFrameRate())
         
         # Zoom out
         self.c_p['AOI'] = [0, self.c_p['camera_width'], 0,
@@ -166,6 +168,8 @@ class CameraThread(Thread):
             self.camera.set_exposure_time(self.c_p['exposure_time'])
         elif self.c_p['new_settings_camera'][1] == 'frame_rate':
             self.camera.set_frame_rate(self.c_p['target_frame_rate'])
+        elif self.c_p['new_settings_camera'][1] == 'gain':
+            self.camera.set_gain(self.c_p['image_gain'])
 
         # Resetting the new_settings_camera parameter
         self.c_p['new_settings_camera'] = [False, None]
@@ -177,19 +181,19 @@ class CameraThread(Thread):
             if self.c_p['new_settings_camera'][0]:
                 self.update_camera_settings()
             count += 1
-            if count % 20 == 5:
+            if count % 110 == 5: # % 20 before
                 p_t = perf_counter()
             self.c_p['image'] = self.camera.capture_image()
             if self.c_p['image'] is None:
-                print("None image error!!?!?")
+                print("None image error!")
             if self.c_p['recording']:
                 img = copy(self.c_p['image'])
                 name = copy(self.c_p['video_name'])
                 # TODO add also the time for the frame captured as measured on the controller.
                 self.c_p['frame_queue'].put([img, name,
-                                             self.c_p['video_format']])
-            if count % 20 == 15:
-                self.c_p['fps'] = 11 / (perf_counter()-p_t)
+                                             self.c_p['video_format'], time()])
+            if count % 110 == 105: # Unreliable for high framerates, increasing from 10 to 100 measurement rate(from 20 and 15 to 110 and 95)
+                self.c_p['fps'] = 101 / (perf_counter()-p_t) # Changed from 11 to 111
 
 
 class VideoFormatError(Exception):
@@ -319,6 +323,8 @@ class VideoWriterThread(Thread):
         self.frame_buffer = []
         self.frame_buffer_size = 100
         self.frame_count = 0
+        self.frame_time = 0
+        self.frame_timings = np.zeros(10_000_000) # May want to make this really big and only save it at the end of the video recording.
         self.VideoWriter = None
         self.np_save_path = None
 
@@ -357,6 +363,9 @@ class VideoWriterThread(Thread):
         """
         Saves all the frames in the buffer to a .npy file.
         """
+        if self.frame_count < 3: # Potential fix for problem with saving the 0--1 as a file.
+            print("Not enough frames to save, only ", self.frame_count)
+            return
         nbr_frames = self.frame_count % self.frame_buffer_size
         if nbr_frames == 0 and self.frame_count != 0:
             nbr_frames = self.frame_buffer_size
@@ -366,6 +375,12 @@ class VideoWriterThread(Thread):
         filename = lower_lim + '-' + upper_lim + '.npy'
         with open(self.np_save_path+filename, 'wb') as f:
             np.save(f, self.frame_buffer[:nbr_frames])
+        # TODO if this works change so that it is a single file.
+        if not self.video_created:
+            
+            with open(self.np_save_path+'frame_time.npy', 'wb') as f:
+                nbr_frames = min(self.frame_count, 10_000_000)
+                np.save(f, self.frame_timings[:nbr_frames])
         self.frame_buffer *= 0
 
     def create_NP_writer(self, video_name):
@@ -388,6 +403,8 @@ class VideoWriterThread(Thread):
         try:
             # TODO fix error here
             self.frame_buffer[nbr_frames, :, :] = deepcopy(self.frame)
+            if self.frame_count<10_000_000:
+                self.frame_timings[self.frame_count] = self.frame_time
             # Do we miss a frame here?
             self.frame_count += 1
         except Exception as ex:
@@ -450,7 +467,7 @@ class VideoWriterThread(Thread):
                                                        self.video_width,
                                                        self.video_height, 3]))
             self.frame_count = 0
-
+            
             self.create_NP_writer(video_name)
         else:
             raise VideoFormatError(f"Video format{self.c_p['video_format']}\
@@ -481,7 +498,7 @@ class VideoWriterThread(Thread):
 
                 if not self.c_p['frame_queue'].empty():
 
-                    [self.frame, source_video, self.format] = self.c_p['frame_queue'].get()
+                    [self.frame, source_video, self.format, self.frame_time] = self.c_p['frame_queue'].get()
 
                     # Check that name and size are correct, if not create a new
                     image_shape = np.shape(self.frame)

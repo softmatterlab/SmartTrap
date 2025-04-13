@@ -54,6 +54,12 @@ class BaslerCamera(CameraInterface):
             self.cam = pylon.InstantCamera(tlf.CreateFirstDevice())
             self.cam.Open()
             sleep(0.2)
+            self.cam.AcquisitionFrameRateEnable = False # Default is max fps
+            try:
+                # TODO test if this worked, can reach close to 4000 fps with it on a decently large AOI.
+                self.camera.SensorReadoutMode.SetValue("Fast")
+            except Exception as ex:
+                print(f"Sensor readout mode not accepted by camera, {ex}")
             return True
         except Exception as ex:
             self.cam = None
@@ -84,6 +90,14 @@ class BaslerCamera(CameraInterface):
             self.cam.AcquisitionFrameRate.SetValue(float(frame_rate))
         except Exception as ex:
             print(f"Frame rate not accepted by camera, {ex}")
+
+    def set_gain(self,gain):
+        try:
+            print(f"Setting gain to {gain}")
+            self.cam.Gain.Value = int(gain)
+        except:
+
+            pass
         
 
     def set_AOI(self, AOI):
@@ -117,6 +131,10 @@ class BaslerCamera(CameraInterface):
             self.cam.Height = height
             self.cam.OffsetX = offset_x
             self.cam.OffsetY = offset_y
+            AOI[0] = offset_x
+            AOI[1] = offset_x + width
+            AOI[2] = offset_y
+            AOI[3] = offset_y + height
 
         except Exception as ex:
             print(f"AOI not accepted, AOI: {AOI}, error {ex}")

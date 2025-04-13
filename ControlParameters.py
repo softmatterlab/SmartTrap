@@ -40,7 +40,7 @@ class ControlParametersViewer(QWidget):
         self.timer.timeout.connect(self.set_data)
 
         self.timer.start()
-        self.setLayout(self.vBox) 
+        self.setLayout(self.vBox)
 
     def CreateTable(self):
 
@@ -82,6 +82,7 @@ def default_c_p():
            'new_settings_camera': [False, None],
            'camera_width': 1920,
            'camera_height': 1080,
+           'camera_type': "Basler",#, # Options are Thorlabs and Basler
            'recording': False,
            'exposure_time': 5000,
            'fps': 50,  # Frames per second of camera, measured
@@ -97,7 +98,8 @@ def default_c_p():
            'bitrate': '30000000', # Bitrate of video to be saved
            'frame_queue': Queue(maxsize=2_000_000),  # Frame buffer essentially
            'image_scale': 1,
-           'microns_per_pix': 1/18.28, # Note this parameter is system dependent!
+           'microns_per_pix': 1/(18.28*1.15), # *(4.8/2.74), # Note this parameter is system dependent! After replacing the lens this changed by 15%(exactly)
+           # Defualt pixel size is 2.74 microns(Basler 23 um), thorcam has 4.8 micron in pixel size. 
 
            # Temperature c_p
            'temperature_output_on':False,
@@ -154,6 +156,10 @@ def default_c_p():
                                      'Position_A_X', 'Position_A_Y','Position_B_X','Position_B_Y',
                                      'Position_X','Position_Y'
                                      ],
+            'prediction_channels': ['trapped_particle_x_position', 'trapped_particle_y_position', 'trapped_particle_z_position',
+                                    'pipette_particle_x_position', 'pipette_particle_y_position', 'pipette_particle_z_position',
+                                    'pipette_particle_radii', 'trapped_particle_radii', 'particle_trapped', 'particle_in_pipette',
+                                    'prediction_time','trapped_x_force', 'trapped_y_force'],
 
             'save_idx': 0, # Index of the saved data
             # Piezo outputs
@@ -175,6 +181,8 @@ def default_c_p():
             'draw_particles': False, # If the particles should be drawn in the image
             'draw_z_text': False, # If the z-position of the particles should be drawn in the image
             'draw_TnP_particles': False, # If the particles in the trap and pipette should be drawn in the image
+            'draw_lasers': False, # If the laser positions should be drawn in the image
+            'draw_force': False,
 
             'crop_width': 64,
             'prescale_factor': 2, # Factor with which the image is to be prescaled before doing the tracking/traing
@@ -202,18 +210,21 @@ def default_c_p():
             'multiple_particles_trapped': False,
 
             'pipette_tilt': 0, # tilt of the pipette, used to find the tip position.
-            'Trapped_particle_position': [0,0,0,0], # Position of the trapped particle in the image,x,y,z, radii
+            'Trapped_particle_position': [0,0,0,0], # Position of the trapped particle in the image; x,y,z, radii in pixels
             'pipette_particle_location': [1200,1200,0,0], # Location of the pipette particle in the image, TODO Use either position or location and be consistent.
             'pipette_location': [0,0,0,0], # Location of the pipette in the image,x,y position of tip as well as width and height of pipette(in this order).
             'pipette_tip_location': [0,0], # Location of the pipette tip in the image
 
             'default_unet_path': "NeuralNetworks\TorchBigmodelJune_1", # Not used anymore, remove.
-            'yolo_path': "NeuralNetworks\YOLOV5Weights.pt",
+            'yolo_path': "NeuralNetworks\YOLOV5Weights.pt", # "C:/Users/Martin/OneDrive - University of Gothenburg/PhD/OT software/YOLO_training/YOLO_V9/yolov9/runs/train/yolov9-c5/weights/best.pt", #"C:/Users/Martin/OneDrive - University of Gothenburg/PhD/OT software/YOLO_training/YOLO_V9/yolov9/runs/train/yolov9-c5/weights/best.pt", #"NeuralNetworks\YOLOV5Weights.pt", #
             'default_z_model_path': "NeuralNetworks\Z_model_large_range.pth",
 
             # Autocontroller parameters
             'loop_execution_time': 0, # Time it takes to execute the loop
             'autocontroller_current_step': 'checking_pipette', # The current step of the autocontroller
+            'autonomous_experiment_type': 'molecule_stretching', # The type of autonomous experiment to be performed, alternatives are molecule_stretching and electrostatic(currently)
+            'autonomous_experiment_types': ['molecule_stretching','electrostatic_interactions', 'RBC_experiment', 'auto_stokes','hairpin_stretching'],
+
             'autonomous_experiment': False, # If this is toggled we will try to do a full autonomous experiment.
             'autonomous_experiment_states': ['checking_pipette','focusing_pipette','searching_for_particle_1','sucking_into_pipette','searching_for_particle_2','move2area_above_pipette','touching_particles'],
             'centering_on': False,
@@ -231,14 +242,13 @@ def default_c_p():
             'touch_counter': 0, # Keeps track of how many times we have tried to attach a molecule and failed. Needs to be reset when we have successfully attached a molecule or when starting on a new molecule
             'drop_particle': False, # If set to true the piezos will move to drop the particle(s) in the trap
             'stretch_molecule': False,
-            'attach_DNA_automatically': False,
+            #'attach_DNA_automatically': False,
             'move_particle2pipette': False,
             'find_laser_position': False, # Updates the laser position to the current closest particle
             'focus_pipette': False, # Focus the pipette by optimizing sharpness
             'pipette_focus_startup': True,
             'pipette_sharpnesses': [],
             'pipette_sharpness_Z_pos': [],
-            #'sharpness_mapped': False,
 
             'piezo_target_positions': [0,0,0,0], # A position rading of the PSDs can be saved and moved to on the position sensors, by default this is position 0,0 on both lasers.
             'laser_position_A': [2660, 1502.3255814],# Default
@@ -255,29 +265,35 @@ def default_c_p():
             'capillary_2_position': [0,0,0],
             'pipette_location_chamber': [0,0,0], # Location of the pipette in the chamber, motor coordinates
             'particle_type': 1, 
-            'capillary_1_fluidics_channel': [0, 20], # first number is the channel numnber(0,1 or 2) and the second is the pressure when pushing particles[mbar]
-            'capillary_2_fluidics_channel': [2, 20],
-            'central_channel_fluidics': [1, 50], # The central channel where the pipette is.
+            'capillary_1_fluidics_channel': [0, 30, 3], # first number is the channel numnber(0,1 or 2) and the second is the pressure when pushing particles[mbar]. The last is the index of the valve used.
+            'capillary_2_fluidics_channel': [2, 30, 3],
+            'central_fluidics_channel': [1, 50,1], # The central channel where the pipette is.
+            
 
             # Stretching parmeters
             'molecule_attached': False,
-            'stretching_speed': 40, # Speed of stretching in a.u
-            'stretching_distance': 6, # Maximum distance to stretch in microns
-            'stretch_force': 65, # Maximum force to stretch with in pN
+            'stretching_speed': 20, # Speed of stretching in a.u # TODO make this and some other parameters possible to change in the GUI
+            'stretching_distance': 6, # Maximum distance to stretch in microns, without overstretching
+            "min_stretch_distance": 4, # Minimum distance to stretch in microns, including overstretching
+            'stretch_force': 69, # Maximum force to stretch with in pN, TODO change to rolling average
+            'max_force': 100, # Maximum force allowable in pN, essentially the force at which we risk loosing the bead.
             'protocol_limits_dac': [20_000, 40_000], # The limits of the protocol in DAC units,
-            'measurement_time': 100, # Time(seconds) during which we will do the stretching experiment.
+            'measurement_time': 180, # Time(seconds) during which we will do the stretching experiment.
             'external_save_toggled': False,
             'experiment_finished': False,
             
 
             # Minitweezers controller parameters
-            'COM_port': 'COM6', # The COM port of the minitweezers controller, default is COM6
+            'COM_port': 'COM4', # The COM port of the minitweezers controller, default is COM6
             'minitweezers_connected': False,
             'blue_led': 0, # Wheter the blue led is on or off, 0 for on and 1 for off
             'objective_stepper_port': 'COM10', # COM4
             #'PSD_bits_per_micron_sum': [0.0703,0.0703], # Conversion factor between the PSD x(or y)/sum channel and microns i.e x/sum / psd_bits_per_micron_sum = microns
             'PSD_to_pos': [14.252,12.62], # The calibration factor for the position PSDs,
-            'PSD_to_force': [0.036,0.036,0.039,0.039], #[0.02505,0.02565,0.02755,0.0287], # The calibration factor for the force PSDs, AX,AY, BX,BY
+            'PSD_to_force': np.array([0.0166,0.0148,0.0172,0.0184])*1.02385, # Calibrated with 4.24 PS on Sep 6 - 2024. Seems more accurate than the newer calibration.
+            # Did not take the walls into account during calibration, the factor 1.02385 accounts for this.
+            # [0.017947394685072487,0.016736806285849636, 0.01810832796167883, 0.019355181943484304],# The calibration factor for the force PSDs, AX,AY, BX,BY, Calibrated with silica particles 4.27 at 21.5 C Feb 7 2025
+            
             'Photodiode_sum_to_force': [1200,-700,210], # The calibration factor for the photodiode/PSD sum channel to force
             'minitweezers_goto_speed': 20_000,
 
@@ -287,8 +303,8 @@ def default_c_p():
             'protocol_data': np.uint8(np.zeros(13)),
 
             # Minitweezers calibration parameters
-            'grid_size': 10, # must match the numbers below.
-            'calibration_points': np.zeros([10,10,15]),
+            'grid_size': 5, # must match the numbers below. # Changed from 10
+            'calibration_points': np.zeros([5,5,15]),
             'calibration_start': True, # Used to tell if the calibration should be reset (started from scratch).
             'calibration_running': False,
             'calibration_performed': False, # Sets to true when a new calibration has been performed and this should be updated in the read-portenta thread
@@ -297,17 +313,37 @@ def default_c_p():
             "electrostatic_protocol_toggled": False,
             'electrostatic_protocol_running': False,
             'electrostatic_protocol_finished': False,
+            'electrostatic_experiment_alignment': False,
+            'electrostatic_auto_experiment': False,
+            'electrostatic_touch_force_limit': 10,
+            'electrostatic_speed': 2,
+            'electrostatic_separation': 0.5, # Separation in microns between the particles surface at maximum
             'electrostatic_protocol_start': 20_000, # First postiion
             'electrostatic_protocol_end': 30_000, # Last postion
             'electrostatic_protocol_steps': 10, # stops of the protocol
             'electrostatic_protocol_duration': 20, # Duration of the protocol in seconds per step
-            
+
+            # RBC experiment parameters
+            'RBC_experiment_running': False,
+            'RBC_laser_currents': [ 
+                                    [87,88,20], # 5 mW / laser
+                                    [96,98,5], # 10 mW per laser
+                                    [87,88,10],
+                                    [110,116,5], # 20
+                                    [87,88,10],
+                                    [137,147,5], # 42
+                                    [87,88,10],
+                                    [162,175,5], # 60
+                                    [87,88,10],
+                                    [187,203,5], # 80
+                                    [87,88,20],
+                                ], # Ordedered as [laser_A_current, laser_B_current, duration]
 
             # Laser parameters
-            'laser_A_port':'COM11',
-            'laser_B_port':'COM12',
-            'laser_A_current': 284, # Current in mA
-            'laser_B_current': 249, # Current in mA
+            'laser_A_port':'COM12',
+            'laser_B_port':'COM11',
+            'laser_A_current': 249, # Current in mA
+            'laser_B_current': 235, # Current in mA
             'laser_A_on': False,
             'laser_B_on': False,
             'reflection_A': 0.0693, # Used to calculate the actual laser power in the sample.
@@ -317,14 +353,14 @@ def default_c_p():
             'reflection_fac': 1.0057, #1.0111, # Factor relatets to the compensation when calculating the true sum readings.
 
             # Pump parameters
-            'pump_adress': 'COM13',
+            'pump_adress': 'COM7', # com 13 before
             'target_pressures': np.array([0.0, 0.0 , 0.0, 0.0]),
             'current_pressures': np.array([0.0, 0.0 , 0.0, 0.0]),
             # Valve parameters
             'valve_controller': None,
             'valve_adress': 'COM3',
             'valves_controller_connected': False,
-            'valves_used': [1], # indices of the valves used
+            'valves_used': [1,3], # indices of the valves used
             'valves_open': [False,False,False,False,False,False,False,False],
             # Parameters for the home made pump for the pipette
             'pump_PSU_adress': 'COM5',
@@ -345,39 +381,57 @@ def default_c_p():
            'move_to_location': False, # Should the motors move to a location rather than listen to the speed?
            'ticks_per_micron': 6.24,#24.45, # How many ticks per micron
            'microns_per_tick': 1/6.24, #0.0408, # How many microns per tick
-           'ticks_per_pixel': 6.24/18.28, #1.337, # How many pixels per micron
+           'ticks_per_pixel': 6.24/(18.28*1.15), #1.337, # How many pixels per micron
            'saved_positions':[],
 
+           # Stokes test parameters
+           'stokes_left_pos': [0,0,0],
+           'stokes_right_pos': [0,0,0],
+           'stokes_up_pos': [0,0,0],
+           'stokes_down_pos': [0,0,0],
+           'stokes_center_pos': [0,0,0],
+           'stokes_size_threshold': 2,
+           'stokes_stage': "stokes_startup",
+           'stokes_test_running': False,
+           'stokes_test_step': "startup",
 
-
+           # Hairpins experiment parameters
+           'hairpin_experiment_running': False,
+           'hairpin_experiment_step': "startup",
+           'hairpin_experiment_steps': ["startup","waiting_for_particle","waiting_for_hairpin","waiting_for_stretching","waiting_for_release"],
+           'hairpin_max_pull_distance': 1, # Maximum distance the laser will move when trying to attach a hairpin
+           'hairpin_counter': 0,
+           'hairpin_max_force': 30, # Will use force protocol between min and max force
+           'hairpin_min_force': -5,
+        
            # Thorlabs motors
-           """
-           'disconnect_motor':[False,False,False],
-           'thorlabs_motor_threads': [],
-           'serial_nums_motors':["27502419","27502438",""], # Serial numbers of x,y, and z motors
-           'stepper_serial_no': '70167314',
-           'thorlabs_threads': [None,None,None],
-           'stepper_starting_position': [0, 0, 0],
-           'stepper_controller': None,
-           'polling_rate': 250,
-            # Thorlabs piezo k-cube
-           'z_starting_position': 0,
-           'z_current_position': 0,
-           'z_piezo_connected': False,
-           'connect_z_piezo': True,
-           'z_movement':0,
-                       # Common motor parameters
-           'disconnect_motor':[False,False,False],
-           'stage_stepper_connected': [False, False, False],
-           'stepper_current_position': [0, 0, 0],
-           'stepper_target_position': [2.3, 2.3, 7],
-           'stepper_move_to_target': [False, False, False],
-           'stepper_next_move': [0, 0, 0],
-           'stepper_max_speed': [0.01, 0.01, 0.01],
-           'stepper_acc': [0.005, 0.005, 0.005],
-           'new_stepper_velocity_params': [False, False, False],
-           'connect_steppers': [False,False,False], # Should steppers be connected?
-            """
+        #    """
+        #    'disconnect_motor':[False,False,False],
+        #    'thorlabs_motor_threads': [],
+        #    'serial_nums_motors':["27502419","27502438",""], # Serial numbers of x,y, and z motors
+        #    'stepper_serial_no': '70167314',
+        #    'thorlabs_threads': [None,None,None],
+        #    'stepper_starting_position': [0, 0, 0],
+        #    'stepper_controller': None,
+        #    'polling_rate': 250,
+        #     # Thorlabs piezo k-cube
+        #    'z_starting_position': 0,
+        #    'z_current_position': 0,
+        #    'z_piezo_connected': False,
+        #    'connect_z_piezo': True,
+        #    'z_movement':0,
+        #                # Common motor parameters
+        #    'disconnect_motor':[False,False,False],
+        #    'stage_stepper_connected': [False, False, False],
+        #    'stepper_current_position': [0, 0, 0],
+        #    'stepper_target_position': [2.3, 2.3, 7],
+        #    'stepper_move_to_target': [False, False, False],
+        #    'stepper_next_move': [0, 0, 0],
+        #    'stepper_max_speed': [0.01, 0.01, 0.01],
+        #    'stepper_acc': [0.005, 0.005, 0.005],
+        #    'new_stepper_velocity_params': [False, False, False],
+        #    'connect_steppers': [False,False,False], # Should steppers be connected?
+        #     """
 
 
            'steppers_connected': [False, False, False], # Are the steppers connected?
@@ -444,10 +498,87 @@ class DataChannel:
 
 def get_data_dicitonary_new():
     data = [
+    ['Time', 'Seconds', False], # Time measured by the computer.
+    ['prediction_time','microseconds', True],
+    ['particle_trapped','(bool)', False],
+    ['trapped_particle_x_position','microns', True],
+    ['trapped_particle_y_position','microns', True],
+    ['trapped_particle_z_position','microns', True],
+    ['trapped_x_force', 'pN', True],
+    ['trapped_y_force', 'pN', True],
+    ['trapped_particle_radii','microns', True],
+    ['particle_in_pipette','(boolish)', False], # Can take values,1,2,0 - 1 No particle in pipette, 2- particle in pipette, 0 no pipette visible
+    ['pipette_particle_x_position','microns', True],
+    ['pipette_particle_y_position','microns', True],
+    ['pipette_particle_z_position','microns', True],
+    ['pipette_particle_radii','microns', True],
+    ['Temperature', 'Celsius', False],
+    ['Motor_x_pos', 'ticks', True],
+    ['Motor_y_pos','ticks', True],
+    ['Motor_z_pos', 'ticks', True],
+    ['Motor_x_speed','ticks/s', True],
+    ['Motor_y_speed','ticks/s', True],
+    ['Motor_z_speed','ticks/s', True],
+    ['Motor time','microseconds', True],
+    ['PSD_A_P_X','bits', True],
+    ['PSD_A_P_Y','bits', True],
+    ['PSD_A_P_sum','bits', True],
+    ['PSD_A_F_X', 'bits', True],
+    ['PSD_A_F_Y','bits', True],
+    ['PSD_A_F_sum','bits', True],
+    ['PSD_A_F_sum_compensated','bits', True],
+    ['PSD_B_P_X', 'bits', True],
+    ['PSD_B_P_Y','bits', True],
+    ['PSD_B_P_sum','bits', True],
+    ['PSD_B_F_X', 'bits', True],
+    ['PSD_B_F_Y','bits', True],
+    ['PSD_B_F_sum','bits', True],
+    ['PSD_B_F_sum_compensated','bits', True],
+    ['Photodiode_A','bits', True],
+    ['Photodiode_B','bits', True],
+    ['Laser_A_power','mW', True],
+    ['Laser_B_power','mW', True],
+    ['T_time','microseconds', True], # Time measured on the controller
+    ['Time_micros_high','microseconds', False],
+    ['Time_micros_low','microseconds', False],
+    ['F_A_X','pN', False],
+    ['F_A_Y','pN', False],
+    ['F_B_X','pN', False],
+    ['F_B_Y','pN', False],
+    ['F_A_Z','pN', False],
+    ['F_B_Z','pN', False],
+    ['F_total_X','pN', True],
+    ['F_total_Y','pN', True],
+    ['F_total_Z','pN', True],
+    ['Position_A_X','microns', False],
+    ['Position_A_Y','microns', False],
+    ['Position_B_X','microns', False],
+    ['Position_B_Y','microns', False],
+    ['Position_X','microns', True],
+    ['Position_Y','microns', True],
+    ['PSD_Force_A_saved','pN', False],
+    ['Photodiode/PSD SUM A','a.u.', False],
+    ['Photodiode/PSD SUM B','a.u.', False],
+    ['message','string', False],
+    ['dac_ax','bits', True],
+    ['dac_ay','bits', True],
+    ['dac_bx','bits', True],
+    ['dac_by','bits', True],
+    ]
+
+    data_dict = {}
+    for channel in data:
+        data_dict[channel[0]] = DataChannel(channel[0], channel[1], [0], channel[2])
+    return data_dict
+
+"""
+def get_data_dicitonary_old():
+    data = [
     ['Time','Seconds'], # Time measured by the computer.
     ['particle_trapped','(bool)'],
     ['particle_in_pipette','(boolish)'], # Can take values,1,2,0 - 1 No particle in pipette, 2- particle in pipette, 0 no pipette visible
     ['trapped_particle_z_position','microns'],
+    
     ['Temperature', 'Celsius'],
     ['Motor_x_pos', 'ticks'],
     ['Motor_y_pos','ticks'],
@@ -507,7 +638,7 @@ def get_data_dicitonary_new():
         data_dict[channel[0]] = DataChannel(channel[0],channel[1],[0])
     return data_dict
 
-
+"""
 def get_unit_dictionary(self):
     units = {
         'Time':'(s)',

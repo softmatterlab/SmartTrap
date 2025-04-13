@@ -22,6 +22,7 @@ import numpy as np
 from functools import partial
 
 # TODO adjust plot axis not working properly
+# TODO make these dockable
 
 Colors = {
     'red': (255,0,0),
@@ -251,8 +252,6 @@ class PlotWindow(QMainWindow):
     # NOTE there was a bug in pyqtgraph 0.12.3 which made the window
     # crash when setting back auto zoom on the axis
     
-    # TODO have the last point entered be a different color/size of the others
-    # TODO Have color of markers independent of color of the line between them
     # TODO Make it possible to label the liveplots(instead of calling them just plot 0, plot 1 etc.
     def __init__(self, c_p, data, x_keys, y_keys, aspect_locked=False, grid_on=False, title="Data plotter", default_plot_length=5_000):
         super().__init__()
@@ -648,8 +647,6 @@ class PlotWindow(QMainWindow):
         line.setSymbolPen(pen)
         line.setSymbolBrush(color) # Can be used to set the symbol color
         # todo TEST AND SEE if we need to save the pen.
-
-
     # TODO add marker size option
 
     def set_plot_color(self, color, idx):

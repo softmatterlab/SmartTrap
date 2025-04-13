@@ -296,10 +296,18 @@ class ConfigurePumpWidget(QWidget):
         self.layout.addWidget(self.capillary_1_channel_spinbox)
 
         self.capillary_1_max_pressure_input = QDoubleSpinBox()
-        self.capillary_1_max_pressure_input.setRange(0, 1200)
+        self.capillary_1_max_pressure_input.setRange(0, 2000)
         self.capillary_1_max_pressure_input.setValue(self.c_p['capillary_1_fluidics_channel'][1])
         self.capillary_1_max_pressure_input.valueChanged.connect(lambda value: self.set_capillary_1_flow_pressure(value))
         self.layout.addWidget(self.capillary_1_max_pressure_input)
+
+        self.capillary_1_valve_label = QLabel("Capillary 1 Valve")
+        self.layout.addWidget(self.capillary_1_valve_label)
+        self.capillary_1_valve_input = QSpinBox()
+        self.capillary_1_valve_input.setRange(0, 7)
+        self.capillary_1_valve_input.setValue(self.c_p['capillary_1_fluidics_channel'][2])
+        self.capillary_1_valve_input.valueChanged.connect(lambda value: self.set_capillary_1_valve(value))
+        self.layout.addWidget(self.capillary_1_valve_input)
 
         self.capillary_2_label = QLabel("Capillary 2")
         self.layout.addWidget(self.capillary_2_label)
@@ -310,25 +318,41 @@ class ConfigurePumpWidget(QWidget):
         self.layout.addWidget(self.capillary_2_channel_spinbox)
 
         self.capillary_2_max_pressure_input = QDoubleSpinBox()
-        self.capillary_2_max_pressure_input.setRange(0, 1200)
+        self.capillary_2_max_pressure_input.setRange(0, 2000)
         self.capillary_2_max_pressure_input.setValue(self.c_p['capillary_2_fluidics_channel'][1])
         self.capillary_2_max_pressure_input.valueChanged.connect(lambda value: self.set_capillary_2_flow_pressure(value))
         self.layout.addWidget(self.capillary_2_max_pressure_input)
+
+        self.capillary_2_valve_label = QLabel("Capillary 2 Valve")
+        self.layout.addWidget(self.capillary_2_valve_label)
+        self.capillary_2_valve_input = QSpinBox()
+        self.capillary_2_valve_input.setRange(0, 7)
+        self.capillary_2_valve_input.setValue(self.c_p['capillary_2_fluidics_channel'][2])
+        self.capillary_2_valve_input.valueChanged.connect(lambda value: self.set_capillary_2_valve(value))
+        self.layout.addWidget(self.capillary_2_valve_input)
 
         self.main_label = QLabel("Central Channel")
         self.layout.addWidget(self.main_label)
         self.main_channel_spinbox = QSpinBox()
         self.main_channel_spinbox.setRange(1, 3)
-        self.main_channel_spinbox.setValue(self.c_p['central_channel_fluidics'][0])
+        self.main_channel_spinbox.setValue(self.c_p['central_fluidics_channel'][0])
         self.main_channel_spinbox.valueChanged.connect(lambda value: self.set_main_channel(value))
         self.layout.addWidget(self.main_channel_spinbox)
 
         self.main_max_pressure_input = QDoubleSpinBox()
-        self.main_max_pressure_input.setRange(0, 1200)
-        self.main_max_pressure_input.setValue(self.c_p['central_channel_fluidics'][1])
+        self.main_max_pressure_input.setRange(0, 2000)
+        self.main_max_pressure_input.setValue(self.c_p['central_fluidics_channel'][1])
         self.main_max_pressure_input.valueChanged.connect(lambda value: self.set_main_flow_pressure(value))
         self.layout.addWidget(self.main_max_pressure_input)
-        
+
+        self.central_valve_label = QLabel("Central Valve")
+        self.layout.addWidget(self.central_valve_label)
+        self.main_valve_input = QSpinBox()
+        self.main_valve_input.setRange(0, 7)
+        self.main_valve_input.setValue(self.c_p['central_fluidics_channel'][2])
+        self.main_valve_input.valueChanged.connect(lambda value: self.set_main_valve(value))
+        self.layout.addWidget(self.main_valve_input)
+                
         self.setLayout(self.layout)
         self.show()
 
@@ -337,14 +361,21 @@ class ConfigurePumpWidget(QWidget):
     def set_capillary_2_channel(self, channel):
         self.c_p['capillary_2_fluidics_channel'][0] = int(channel-1)
     def set_main_channel(self, channel):
-        self.c_p['central_channel_fluidics'][0] = int(channel-1)
+        self.c_p['central_fluidics_channel'][0] = int(channel-1)
 
     def set_capillary_1_flow_pressure(self, pressure):
         self.c_p['capillary_1_fluidics_channel'][1] = float(pressure)
     def set_capillary_2_flow_pressure(self, pressure):
         self.c_p['capillary_2_fluidics_channel'][1] = float(pressure)
     def set_main_flow_pressure(self, pressure):
-        self.c_p['central_channel_fluidics'][1] = float(pressure)
+        self.c_p['central_fluidics_channel'][1] = float(pressure)
+
+    def set_capillary_1_valve(self, valve):
+        self.c_p['capillary_1_fluidics_channel'][2] = int(valve)
+    def set_capillary_2_valve(self, valve):
+        self.c_p['capillary_2_fluidics_channel'][2] = int(valve)
+    def set_main_valve(self, valve):
+        self.c_p['central_fluidics_channel'][2] = int(valve)
     
     
 
@@ -368,6 +399,7 @@ class MicrofluidicsControllerWidget(QWidget):
         self.update_timer = QTimer()
         self.update_timer.setInterval(500)
         self.update_timer.timeout.connect(self.refresh)
+        self.update_timer.start()
         print("Pump monitor started")
 
     def initUI(self):
@@ -432,7 +464,7 @@ class MicrofluidicsControllerWidget(QWidget):
 
             # Create a spinbox for setting the pressure
             self.pressure_spinboxes.append(QDoubleSpinBox())
-            self.pressure_spinboxes[-1].setRange(0, 1200) # TODO fix so that this actually corresponds to the pressure range of the pump
+            self.pressure_spinboxes[-1].setRange(0, 2000) # TODO fix so that this actually corresponds to the pressure range of the pump
             self.pressure_spinboxes[-1].setSingleStep(0.1)
             self.pressure_spinboxes[-1].setSuffix(" mbar")
             self.pressure_spinboxes[-1].valueChanged.connect(lambda value, channel=channel: self.setPressure(channel, value))
@@ -463,6 +495,9 @@ class MicrofluidicsControllerWidget(QWidget):
         '''
         self.pump_PSU_max_voltage_spinbox.setValue(self.c_p['pump_PSU_max_voltage'])
         self.toggle_pump_PSU_button.setChecked(self.c_p['pump_PSU_on'])
+
+        for button, index in zip(self.valve_buttons, self.c_p['valves_used']):
+            button.setChecked(self.c_p['valves_open'][index])
 
     def closeEvent(self, event):
         #self.pumpMonitorThread.
