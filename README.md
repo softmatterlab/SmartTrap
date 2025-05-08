@@ -28,3 +28,6 @@ The microcontroller will automatically run the program when turned on.
 
 ## Schematics
 Schematics of the electronics controller.
+
+# Supplementary Videos
+The supplementary videos folder contains 5 videos which showcase the capabilites of the SmartTrap system.
