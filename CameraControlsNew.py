@@ -1,22 +1,13 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Oct  7 11:45:53 2022
-
-@author: martin Selin
-"""
 import abc
 import os
-import cv2 # Certain versions of this won't work
+import cv2 
 import tkinter
 from tkinter import simpledialog
 from time import sleep, strftime, perf_counter, time
 from threading import Thread
 from copy import copy, deepcopy
-# from queue import Queue
 
 import skvideo.io
-# run this command to install ffmpeg properly : "conda install ffmpeg -c mrinaljain17"
-
 
 import numpy as np
 from CustomMouseTools import MouseInterface
@@ -159,7 +150,7 @@ class CameraThread(Thread):
         """
         Thread.__init__(self)
         self.camera = camera
-        # TODO check that camera implements the correct interface
+        
         self.camera.connect_camera()
         c_p['camera_width'], c_p['camera_height'] = camera.get_sensor_size()
         self.c_p = c_p
@@ -190,7 +181,7 @@ class CameraThread(Thread):
             if self.c_p['new_settings_camera'][0]:
                 self.update_camera_settings()
             count += 1
-            if count % 110 == 5: # % 20 before
+            if count % 110 == 5: 
                 p_t = perf_counter()
             self.c_p['image'] = self.camera.capture_image()
             if self.c_p['image'] is None:
@@ -198,11 +189,10 @@ class CameraThread(Thread):
             if self.c_p['recording']:
                 img = copy(self.c_p['image'])
                 name = copy(self.c_p['video_name'])
-                # TODO add also the time for the frame captured as measured on the controller.
                 self.c_p['frame_queue'].put([img, name,
                                              self.c_p['video_format'], time()])
-            if count % 110 == 105: # Unreliable for high framerates, increasing from 10 to 100 measurement rate(from 20 and 15 to 110 and 95)
-                self.c_p['fps'] = 101 / (perf_counter()-p_t) # Changed from 11 to 111
+            if count % 110 == 105: 
+                self.c_p['fps'] = 101 / (perf_counter()-p_t)
 
 
 class VideoFormatError(Exception):
@@ -246,18 +236,14 @@ def create_mp4_video_writer(c_p, video_name=None, image_width=None,
     if video_name is None:
         video_name = get_video_name(c_p=c_p)
     tmp = min(500, int(c_p['fps']))
-    frame_rate = str(max(25, tmp))  # Can in principle reach 500fps
+    frame_rate = str(max(25, tmp))  
     if tmp < 25:
         print('Warning, skvideo cannot handle framerates below 25 fps so\
         reverting to 25.')
-    # TODO figure out why this does not work on all computers and how to fix it.
     video_name = c_p['recording_path'] + '/' + video_name + '.mp4'
-    # TODO fix so that exceptions in recording path can be handled
     video = skvideo.io.FFmpegWriter(video_name, outputdict={
                                      '-b': c_p['bitrate'],
-                                     '-r': frame_rate,  # Does not like this
-                                     # specifying codec and bitrate,
-                                     # 'vcodec': 'libx264',
+                                     '-r': frame_rate,  
                                     })
     return video
 
@@ -284,7 +270,7 @@ def npy_generator(path):
             idx = file.find('-')
             print(str(int(file[:idx])),str(int(num)+1))
             if file[:idx] == str(int(num)+1) and file[-4:] == '.npy':
-                images = np.load(os.path.join(path, file))  # Use os.path.join() for better compatibility
+                images = np.load(os.path.join(path, file))
                 num = file[idx+1:-4]
                 done = False
                 for image in images:
@@ -300,7 +286,6 @@ def get_video_name(c_p, base_name=''):
     """
     import datetime
     now = datetime.now()
-    # base_name +
     print(c_p['measurement_name'], base_name)
     name = 'video-' + c_p['measurement_name'] + '-' + str(now.hour)
     name += '-' + str(now.minute) + '-' + str(now.second)+'-fps-'
@@ -327,13 +312,12 @@ class VideoWriterThread(Thread):
         self.format = self.c_p['video_format']
         self.last_frame_format = self.format
         self.video_created = False
-        # TODO update video name to avoid overwriting old videos/photos
         self.video_name = self.c_p['video_name']
         self.frame_buffer = []
         self.frame_buffer_size = 100
         self.frame_count = 0
         self.frame_time = 0
-        self.frame_timings = np.zeros(10_000_000) # May want to make this really big and only save it at the end of the video recording.
+        self.frame_timings = np.zeros(10_000_000)
         self.VideoWriter = None
         self.np_save_path = None
 
@@ -365,14 +349,12 @@ class VideoWriterThread(Thread):
         except Exception as err:
             # The program tries to close a
             print(f"No video to close {err}")
-    # TODO add so that background is removed from videos and photos also when
-    # saving! Would probably need a separate queue for the BGs to do this well.
 
     def np_save_frames(self):
         """
         Saves all the frames in the buffer to a .npy file.
         """
-        if self.frame_count < 3: # Potential fix for problem with saving the 0--1 as a file.
+        if self.frame_count < 3: 
             print("Not enough frames to save, only ", self.frame_count)
             return
         nbr_frames = self.frame_count % self.frame_buffer_size
@@ -384,7 +366,6 @@ class VideoWriterThread(Thread):
         filename = lower_lim + '-' + upper_lim + '.npy'
         with open(self.np_save_path+filename, 'wb') as f:
             np.save(f, self.frame_buffer[:nbr_frames])
-        # TODO if this works change so that it is a single file.
         if not self.video_created:
             
             with open(self.np_save_path+'frame_time.npy', 'wb') as f:
@@ -410,11 +391,9 @@ class VideoWriterThread(Thread):
             # Save the frames into target folder and with suitable name
             self.np_save_frames()
         try:
-            # TODO fix error here
             self.frame_buffer[nbr_frames, :, :] = deepcopy(self.frame)
             if self.frame_count<10_000_000:
                 self.frame_timings[self.frame_count] = self.frame_time
-            # Do we miss a frame here?
             self.frame_count += 1
         except Exception as ex:
             print(f"Trouble writing frame, {ex}")
@@ -429,7 +408,6 @@ class VideoWriterThread(Thread):
             automatically saved.
             # Reasonable threshold perhaps 100_000 frames?
         """
-        # TODO add bg removal as parameter for each saved frame
         if self.format == 'mp4':
             self.VideoWriter.writeFrame(self.frame)
         elif self.format == 'avi':
@@ -463,15 +441,12 @@ class VideoWriterThread(Thread):
             # calculate an appropriate buffer size based on the size in memory
             # the frames take up.
             self.frame_buffer_size = int(501760000 /(self.video_width *self.video_height))
-            if len(image_shape) < 3: # image_shape[2] == 1:
-                # TODO uing uint8 may not be the best choice
-                # Check if we can use higher bitrates too
+            if len(image_shape) < 3: 
                 self.frame_buffer = np.uint8(np.zeros([self.frame_buffer_size,
                                                        self.video_width,
                                                        self.video_height,
                                                        ]))
             elif image_shape[2] == 3:
-                # TODO check why  height and widht have changed order
                 self.frame_buffer = np.uint8(np.zeros([self.frame_buffer_size,
                                                        self.video_width,
                                                        self.video_height, 3]))
@@ -502,9 +477,6 @@ class VideoWriterThread(Thread):
                     and self.c_p['program_running']:
                 self.c_p['saving_video'] = True
 
-                # Check empty twice since we don't want to wait longer than
-                # necessary for the image to be printed to the videowriter
-
                 if not self.c_p['frame_queue'].empty():
 
                     [self.frame, source_video, self.format, self.frame_time] = self.c_p['frame_queue'].get()
@@ -517,8 +489,6 @@ class VideoWriterThread(Thread):
                         self.video_height = image_shape[1]
                         self.close_video()
                     # Check if name and format is ok
-                    # TODO check how this handles leftover frames in buffer?
-                    # Maybe change to comparing against source video?
                     if self.video_name != source_video:
                         self.close_video()
                         self.video_name = source_video
@@ -526,14 +496,10 @@ class VideoWriterThread(Thread):
                         self.close_video()
 
                     if not self.video_created:
-                        # TODO check naming convention, what happens when we
-                        # change format
                         size = '_' + str(self.video_width) + 'x'
                         size += str(self.video_height)
-                        #size += '_' + str(self.c_p['video_idx']) 
-                        #self.c_p['video_idx'] += 1
                         self.write_video_info(self.video_name+size)
-                        self.create_video_writer(self.video_name+size) # Changed so that there is only one index.
+                        self.create_video_writer(self.video_name+size)
                     self.last_frame_format = self.format
                     self.write_frame()
                 else:
@@ -546,7 +512,6 @@ class VideoWriterThread(Thread):
 class CameraControlMenu():
 
     def __init__(self, root, c_p, font):
-        # TODO add font parameter which sets scale of text
         self.c_p = c_p
         self.font = font
         self.window = tkinter.Toplevel(root)
@@ -563,7 +528,6 @@ class CameraControlMenu():
         self.update()
 
     def add_buttons(self):
-        # TODO add so that info shows up when hovering above a button
         self.record_button = tkinter.Button(master=self.window,
                                             text="Start recording",
                                             command=self.toggle_recording,
