@@ -1,4 +1,3 @@
-
 from PyQt6.QtWidgets import (
  QCheckBox, QVBoxLayout, QWidget, QLabel, QTableWidget, QTableWidgetItem
 )
