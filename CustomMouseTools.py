@@ -1,9 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Sun Jan 15 10:28:23 2023
-
-@author: marti
-"""
 import abc
 
 class MouseInterface(metaclass=abc.ABCMeta):
@@ -34,7 +28,6 @@ class MarkPositionTool(MouseInterface):
         self.c_p = c_p
         self.marker_positions = [] # Marker positions in image coordinates
         self.distance_limit = 30
-        # TODO send in central position
     def resize_coordinate(self):
         pass
     def mousePressLeft(self):
