@@ -4,24 +4,15 @@ from PyQt6.QtWidgets import (
     QPushButton, QVBoxLayout, QWidget, QLabel
 )
 
-# from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QAction, QIntValidator
 from PyQt6.QtCore import Qt, QTimer
 
 import numpy as np
-# from functools import partial
-# from threading import Thread
-# from time import sleep
-# from ThorlabsMotor import MotorThreadV2, PiezoThread
 
 from CustomMouseTools import MouseInterface
 
 
-# Maybe have this as a QThread?
 class LaserPiezoWidget(QWidget):
-    # TODO make it so that this can act as an indicator too, getting updated by other widgets
-    # maybe have it auto-update every second?(refresh function)
-    # Make this happen also when autoaligning on the portenta.
 
     def __init__(self, c_p, data_channels):
         super().__init__()
@@ -131,8 +122,6 @@ class LaserPiezoWidget(QWidget):
         self.timer.setInterval(100) # sets the fps of the timer
         self.timer.timeout.connect(self.refresh)
         self.timer.start()
-        # TODO make this widget update itself when the piezos are moved by a separate function such as the
-        #  pulling protocol. Also make it possible to autoalign both A and B at the same time.
 
     def create_calibration_spinboxes(self):
         self.Calibration_layout = QHBoxLayout()
@@ -242,10 +231,7 @@ class LaserPiezoWidget(QWidget):
         if self.c_p['portenta_command_2'] == 0 or self.c_p['portenta_command_2'] == 2:
             self.c_p['portenta_command_2'] = 1
             print('toggling autoalign of trap A')
-            #self.autoalign_B.setChecked(False)
-            #self.refresh()
         else:
-            # TODO use a mean of the last 10 or so points instead of the last point
             self.c_p['piezo_A'] = np.int32([self.data_channels['dac_ax'].get_data_spaced(1)[0],
                                             self.data_channels['dac_ay'].get_data_spaced(1)[0]])
             self.c_p['piezo_B'] = np.int32([self.data_channels['dac_bx'].get_data_spaced(1)[0],
@@ -314,8 +300,6 @@ class MinitweezersLaserMove(MouseInterface):
         return number
 
     def mouseMove(self):
-        # TODO maybe not round here
-        # TODO scale by the size of the screen
 
         if self.c_p['mouse_params'][0] == 1: # A
             dx = int(self.c_p['image_scale']*(self.c_p['mouse_params'][3] - self.x_prev_A)*self.speed_factor)
