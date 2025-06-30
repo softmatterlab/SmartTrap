@@ -1,24 +1,12 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Jan 18 10:57:06 2023
-
-@author: marti
-"""
-
-
 from PyQt6.QtWidgets import (
     QMainWindow, QCheckBox, QComboBox, QListWidget, QLineEdit,
     QLineEdit, QSpinBox, QDoubleSpinBox, QSlider, QToolBar,QCheckBox,
     QPushButton, QVBoxLayout, QWidget, QLabel
 )
 
-# from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QAction, QIntValidator
 
 import numpy as np
-# from functools import partial
-# from threading import Thread
-# from ThorlabsMotor import MotorThreadV2
 from CustomMouseTools import MouseInterface
 from time import time, sleep
 
@@ -31,8 +19,7 @@ class MotorControllerToolbar(QToolBar):
     def __init__(self, c_p):
         super().__init__()
         self.c_p = c_p
-        #layout = QVBoxLayout()
-        self.motor_speed = self.c_p['minitweezers_goto_speed'] # TODO replace this with a motor speed in c_p
+        self.motor_speed = self.c_p['minitweezers_goto_speed'] 
         self.y_movement = 0
         self.setWindowTitle("Motor controller")
 
@@ -46,7 +33,6 @@ class MotorControllerToolbar(QToolBar):
         self.SpeedLineEdit.textChanged.connect(self.set_motor_speed)
         self.addWidget(self.SpeedLineEdit) 
         
-        # TODO fix naming of functions/buttons confusing even if okay in GUI
         self.up_button = QPushButton('LEFT')
         self.up_button.pressed.connect(self.move_up)
         self.up_button.released.connect(self.stop_y)
@@ -109,7 +95,6 @@ class MotorControllerToolbar(QToolBar):
         led_label = QLabel("Sample LED ON/OFF")
         self.addWidget(led_label) 
         self.addWidget(self.led_button)
-        #self.setLayout(layout)
         
 
     def toggle_led(self, state):
@@ -123,15 +108,12 @@ class MotorControllerToolbar(QToolBar):
             print("LED off")
 
     def set_motor_speed(self, speed):
-        # Maybe have this toggleable
         if np.abs(int(speed)) < 32760:
             self.motor_speed = int(speed)
         else:
             self.motor_speed = int(32760)
 
-    # TODO check if x and y have been mixed up somewhere
     def move_up(self):
-        # TODO fix naming of these!
         self.c_p['motor_x_target_speed'] = self.motor_speed
     def stop_y(self):
         self.c_p['motor_x_target_speed'] = 0
@@ -165,7 +147,7 @@ class MotorControllerWindow(QWidget):
         super().__init__()
         self.c_p = c_p
         layout = QVBoxLayout()
-        self.motor_speed = self.c_p['minitweezers_goto_speed'] # TODO replace this with a motor speed in c_p
+        self.motor_speed = self.c_p['minitweezers_goto_speed']
         self.y_movement = 0
         self.setWindowTitle("Motor controller")
 
@@ -179,7 +161,6 @@ class MotorControllerWindow(QWidget):
         self.SpeedLineEdit.textChanged.connect(self.set_motor_speed)
         layout.addWidget(self.SpeedLineEdit) 
         
-        # TODO fix naming of functions/buttons confusing even if okay in GUI
         self.up_button = QPushButton('LEFT')
         self.up_button.pressed.connect(self.move_up)
         self.up_button.released.connect(self.stop_y)
@@ -256,7 +237,6 @@ class MotorControllerWindow(QWidget):
             print("LED off")
 
     def set_motor_speed(self, speed):
-        # Maybe have this toggleable
         if np.abs(int(speed)) < 32760:
             self.motor_speed = int(speed)
         else:
@@ -265,9 +245,7 @@ class MotorControllerWindow(QWidget):
         if self.motor_speed > 300:
             self.c_p['minitweezers_goto_speed'] = self.motor_speed
 
-    # TODO check if x and y have been mixed up somewhere
     def move_up(self):
-        # TODO fix naming of these!
         self.c_p['motor_x_target_speed'] = self.motor_speed
     def stop_y(self):
         self.c_p['motor_x_target_speed'] = 0
@@ -326,7 +304,6 @@ class ThorlabsMotorWindow(QWidget):
         self.start_z = QPushButton('start z thread')
         self.start_z.pressed.connect(self.start_piezo_z)
         self.start_z.setCheckable(False)
-        # layout.addWidget(self.start_z) # Does not work great yet
 
         self.print_position_button = QPushButton('Print position')
         self.print_position_button.pressed.connect(self.print_current_pos)
@@ -352,8 +329,6 @@ class ThorlabsMotorWindow(QWidget):
         self.move_left_button.pressed.connect(self.move_left)
         self.move_left_button.setCheckable(False)
         layout.addWidget(self.move_left_button)
-
-        # TODO add connection visuals option
 
         self.disconnect_motor_x_b = QPushButton('Disconnect x')
         self.disconnect_motor_x_b.pressed.connect(self.disconnect_motor_x)
@@ -451,11 +426,9 @@ class ThorlabsMotorWindow(QWidget):
         self.c_p['stepper_target_position'][1] -= 0.05
 
     def move_left(self):
-        #if self.motor_y is not None:
         self.c_p['stepper_target_position'][0] += 0.05
 
     def move_right(self):
-        #if self.motor_y is not None:
         self.c_p['stepper_target_position'][0] -= 0.05
 
     def close(self):
@@ -473,38 +446,12 @@ class MotorClickMove(MouseInterface):
         self.y_0_motor = 0
 
     def mousePress(self):
-        # self.c_p['move_to_location'] = False # Update here
-        #self.c_p['minitweezers_target_pos'][0] = self.data_channels['Motor_x_pos'].get_data(1)[0]
-        #self.c_p['minitweezers_target_pos'][1] = self.data_channels['Motor_y_pos'].get_data(1)[0]
-        #self.c_p['minitweezers_target_pos'][2] = self.data_channels['Motor_z_pos'].get_data(1)[0]
         # left click
         if self.c_p['mouse_params'][0] == 1:
             center_x = int((self.c_p['camera_width']/2 - self.c_p['AOI'][0])/self.c_p['image_scale'])
             center_y = int((self.c_p['camera_height']/2 - self.c_p['AOI'][2])/self.c_p['image_scale'])
             dx_pix = (self.c_p['mouse_params'][1] - center_x) * self.c_p['image_scale']
             dy_pix = (self.c_p['mouse_params'][2] - center_y) * self.c_p['image_scale'] 
-            """
-            dx = (self.c_p['mouse_params'][1] - center_x)
-            width = (self.c_p['AOI'][1] - self.c_p['AOI'][0])/self.c_p['image_scale'] / 2
-            height = (self.c_p['AOI'][3] - self.c_p['AOI'][2])/self.c_p['image_scale'] / 2
-            if dx < -width:
-                dx = 0
-                print("Clicked outside of ok area")
-            if dx > width:
-                dx = 0
-                print("Clicked outside of ok area")
-            
-            dy = (self.c_p['mouse_params'][2] - center_y)
-            if dy < -height:
-                dy = 0
-                print("Clicked outside of ok area")
-            if dy > height:
-                dy = 0
-                print("Clicked outside of ok area")
-            dx_pix = dx * self.c_p['image_scale']
-            dy_pix = dy * self.c_p['image_scale']
-            print("moving", width, height, dx, dy, dx_pix, dy_pix)
-            """
             dy_pix = (self.c_p['mouse_params'][2] - center_y) * self.c_p['image_scale'] 
             
             
@@ -567,18 +514,15 @@ class MinitweezersMouseMove(MouseInterface):
         self.y_prev = 0
         self.z_prev = 0
         self.prev_t = time()
-        self.speed_factor = 1000 # TODO make speed more accurate, also make it adjustable
+        self.speed_factor = 1000 
 
     def mousePress(self):
-        #self.c_p['minitweezers_target_pos'][2] = int(self.data_channels['Motor_z_pos'].get_data(1)[0])
         # left click
         if self.c_p['mouse_params'][0] == 1:
-            # TODO make move to position command
             center_x = int((self.c_p['camera_width']/2 - self.c_p['AOI'][0])/self.c_p['image_scale'])
             center_y = int((self.c_p['camera_height']/2 - self.c_p['AOI'][2])/self.c_p['image_scale'])
 
-
-            # Checking that the click was made in an ok position(on tv screen)
+            # Checking that the click was made in an ok position
             width = (self.c_p['AOI'][1] - self.c_p['AOI'][0])/self.c_p['image_scale'] / 2
             height = (self.c_p['AOI'][3] - self.c_p['AOI'][2])/self.c_p['image_scale'] / 2
             if self.c_p['mouse_params'][1] < center_x - width or self.c_p['mouse_params'][1] > center_x + width:
@@ -636,8 +580,8 @@ class MinitweezersMouseMove(MouseInterface):
         """
         if self.c_p['mouse_params'][0] == 2:
 
-            dx = (self.c_p['mouse_params'][3] - self.x_prev)#/dt
-            dy = (self.c_p['mouse_params'][4] - self.y_prev)#/dt
+            dx = (self.c_p['mouse_params'][3] - self.x_prev)
+            dy = (self.c_p['mouse_params'][4] - self.y_prev)
             x_speed = self.check_speed(dx * self.speed_factor)
             y_speed = self.check_speed(dy * self.speed_factor)
             
@@ -647,7 +591,7 @@ class MinitweezersMouseMove(MouseInterface):
             self.y_prev = self.c_p['mouse_params'][4]
             
         elif self.c_p['mouse_params'][0] == 3:
-            dz = (self.c_p['mouse_params'][4] - self.z_prev)#/dt
+            dz = (self.c_p['mouse_params'][4] - self.z_prev)
             z_speed = self.check_speed(dz * self.speed_factor/5)
             
             self.c_p['motor_z_target_speed'] = int(z_speed)
@@ -658,20 +602,3 @@ class MinitweezersMouseMove(MouseInterface):
 
     def getToolTip(self):
         return "Move the motors by clicking or dragging on the screen"
-        
-  
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
