@@ -4,18 +4,11 @@ Created on Mon Jan  9 14:48:59 2023
 
 @author: marti
 """
-# TODO make sure that image orientations are correct and that we are using GPU.
 import torch
 import torch.nn as nn
-#from yolov5 import YOLOv5
-#from ultralytics import YOLO
-#from models.experimental import attempt_load  # This is specific to YOLOv5
 
 import cv2
 import sys
-# Todo remove deeptrack
-# import deeptrack as dt
-# import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -31,20 +24,16 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QTimer
 import pyqtgraph as pg
 
-sys.path.append('C:/Users/Martin/OneDrive/PhD/AutOT/') # TODO move this to same folder as this file
-#sys.path.append("C:/Users/Martin/OneDrive - University of Gothenburg/PhD/OT software/YOLO_training/YOLO_V9/yolov9") # Path to yolov9 package installation
+sys.path.append('C:/Users/Martin/OneDrive/PhD/AutOT/') 
 import find_particle_threshold as fpt
 from unet_model import UNet, UNetZ_split
 from CustomMouseTools import MouseInterface
-
-# TODO the main network should be able to have multiple DL threads each with
-# its own network alternatively we should have the thread capable of having 
-# multiple networks.
 
 def load_yolov5_model(model_path):
     model = torch.hub.load('.', 'custom', path=model_path, source='local') 
     return model
 
+# NOTE this file is not used anymore, tracking moved to AutoController.
 class ParticleCNN(nn.Module):
     def __init__(self):
         super(ParticleCNN, self).__init__()
@@ -74,33 +63,26 @@ class ParticleCNN(nn.Module):
 
 
 def torch_unet_prediction(model, image, device, fac=1.4, threshold=260):
-
+    """
+    Makes a particle tracking prediction using a U-NET. Is not used anymore but
+    can be used for more accurate real-time tracking of particles than what the 
+    YOLO achieves.
+    """
+    # This has been replaced with YOLO
     new_size = [int(np.shape(image)[1]/fac),int(np.shape(image)[0]/fac)]
     rescaled_image = cv2.resize(image, dsize=new_size, interpolation=cv2.INTER_CUBIC)
     s = np.shape(rescaled_image)
     rescaled_image = rescaled_image[:s[0]-s[0]%32, :s[1]-s[1]%32]
+
     if np.shape(rescaled_image)[0] < 100 or np.shape(rescaled_image)[1] <100:
         return np.array([])
-    # TODO do more of this in pytorch which is faster since it works on GPU
     rescaled_image = np.float32(np.reshape(rescaled_image,[1,1,np.shape(rescaled_image)[0],np.shape(rescaled_image)[1]]))
-    rescaled_image /= np.std(rescaled_image) # TODO check if this helped in any way with the stability.
-    torch.cuda.empty_cache() # TODO only do this if device is GPU
+    rescaled_image /= np.std(rescaled_image)
+    torch.cuda.empty_cache()
     with torch.no_grad():
         predicted_image = model(torch.tensor(rescaled_image).to(device))
         resulting_image = predicted_image.detach().cpu().numpy()
-
-    """
-    try:
-        torch.cuda.empty_cache() # TODO only do this if device is GPU
-        with torch.no_grad():
-            predicted_image = model(torch.tensor(rescaled_image).to(device))
-    except Exception as E:
-        print("GPU out of memory, using CPU instead")
-        print(E)
-        model.to("cpu")
-        with torch.no_grad():
-            predicted_image = model(torch.tensor(rescaled_image).to("cpu"))
-    """
+    
     x,y,_ = fpt.find_particle_centers_fast(np.array(resulting_image[0,0,:,:]), threshold)
     ret = []
     for x_,y_ in zip(x,y):
@@ -108,6 +90,9 @@ def torch_unet_prediction(model, image, device, fac=1.4, threshold=260):
     return np.array(ret)
 
 def find_pipette_in_prediction(prediction, z_prediction, threshold=240, size_threshold=10_000):
+    """
+    Alternative prediction for the pipette which does not rely on YOLO.
+    """
     thresholded_image = np.zeros_like(prediction, dtype=np.uint8)
     thresholded_image[prediction > threshold] = 255
     
@@ -115,10 +100,8 @@ def find_pipette_in_prediction(prediction, z_prediction, threshold=240, size_thr
     for i in range(1, num_labels):  # Skipping the first label as it's the background
         area = stats[i, cv2.CC_STAT_AREA]
         y_bottom = np.max(np.where(labels == i)[0]) # Used to check that the pipette is coming from the bottom.
-        #y_bottom_row = np.sum(labels[:,y_bottom] == i)
-        if area > size_threshold and y_bottom>np.shape(prediction)[0]-10:# and y_bottom_row>20:
-            #print(y_bottom, y_bottom_row, area)
 
+        if area > size_threshold and y_bottom>np.shape(prediction)[0]-10:
             # Find min of y-axis to identify the top
             y_max = np.min(np.where(labels == i)[0])
             z = np.median(z_prediction[labels == i])
@@ -127,6 +110,7 @@ def find_pipette_in_prediction(prediction, z_prediction, threshold=240, size_thr
             # Find x as the center of the pipette top
             x_mean = np.mean(np.where(labels[y_max:y_max+10,:] == i)[1])
             return x_mean, y_max, z
+
     return None, None, None
 
 def extract_particles_3dpos(prediction, threshold=250):
@@ -135,11 +119,7 @@ def extract_particles_3dpos(prediction, threshold=250):
     tmp = tmp/np.max(tmp)*255
     tmp = np.uint8(tmp)
     tmp[prediction[0,:,:]<threshold] = 0
-    """
-    tmp = np.array(prediction[0,:,:],dtype=np.uint8)
-    tmp[prediction[0,:,:]<threshold] = 0
-    """
-    # SOmewhat worriesome that we occasionally miss detections if they are too close to perfect focus
+    
     circles = cv2.HoughCircles(tmp, cv2.HOUGH_GRADIENT, dp=1, minDist=14, # np.array(prediction[0,:,:],dtype=np.uint8)
                             param1=60, param2=14, minRadius=6, maxRadius=0)
 
@@ -154,7 +134,6 @@ def extract_particles_3dpos(prediction, threshold=250):
         if particle_intensity < r**2*threshold*4:
             print("Particle intensity too low")
             continue
-        #print(particle_intensity,  r**2*threshold)
         x.append(circle[0])
         y.append(circle[1])
         # Extract z value as the average in the circle
@@ -170,8 +149,6 @@ def torch_unet_z_prediction(model, image, device, fac=2, num_channels_to_modify=
     rescaled_image = cv2.resize(image, dsize=new_size, interpolation=cv2.INTER_CUBIC)
     s = np.shape(rescaled_image)
     rescaled_image = rescaled_image[:s[0]-s[0]%32,:s[1]-s[1]%32]
-    
-    # TODO do more of this in pytorch which is faster since it works on GPU
     rescaled_image = np.float32(np.reshape(rescaled_image,[1,1,np.shape(rescaled_image)[0],np.shape(rescaled_image)[1]]))
     with torch.no_grad():
         predicted_image = model(torch.tensor(rescaled_image).to(device))
@@ -235,7 +212,7 @@ def load_torch_unet(model_path, nbr_of_output_channels=1):
 
 class DeepLearningAnalyserLDS(Thread):
     """
-    Thread which analyses the real-time image for detecting particles
+    Thread which analyses the real-time image for detecting particles.
     """
     def __init__(self, c_p, data_channels, particle_type=0, model=None):
         """
@@ -253,7 +230,6 @@ class DeepLearningAnalyserLDS(Thread):
         None.
 
         """
-        # TODO load some standard models automatically.
         Thread.__init__(self)
         self.c_p = c_p
         self.data_channels = data_channels
@@ -263,29 +239,35 @@ class DeepLearningAnalyserLDS(Thread):
         self.confidence_threshold_pipette = 0.5
         self.particle_type = particle_type # Type of particle to be tracked/analyzed
         self.particle_size_limit = 1.5/self.c_p['microns_per_pix'] # Smaller than 1.5 microns ish is too small to be relevant
-                # Load the default networks for tracking in xy and z.
 
+        # Load the default networks for tracking in xy and z.
         if self.c_p['yolo_path'] is not None:
             self.c_p['model'] = load_yolov5_model(self.c_p['yolo_path'])
             self.c_p['network'] = "YOLOv5"
             self.c_p['device'] = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
             print(f"Loaded default network from {self.c_p['yolo_path']}")
-        '''
-        elif self.c_p['default_unet_path'] is not None:
-            self.c_p['model'], self.c_p['device']  = load_torch_unet(self.c_p['default_unet_path'])
-            self.c_p['network'] = "Pytorch Unet"
-            print(f"Loaded default network from {self.c_p['default_unet_path']}")
-        '''
         if self.c_p['default_z_model_path'] is not None:
             self.c_p['z-model'] = torch.load(self.c_p['default_z_model_path'])
             print(f"Loaded default z-model from {self.c_p['default_z_model_path']}")
         self.setDaemon(True)
 
-    """
-    def setModel(self, model):
-        self.c_p['model'] = model
-    """
     def yolo_prediction(self):
+        """
+        Runs YOLO model inference on the input image to detect particles and pipette, 
+        and updates internal state with the detection results.
+        The function processes the model's predictions, filters them based on confidence 
+        thresholds and size limits, and distinguishes between particles and pipette detections. 
+        Detected particle positions and radii are stored, and the pipette location is updated 
+        if found.
+        Updates the following keys in self.c_p:
+            - 'pipette_located': Boolean indicating if the pipette was detected.
+            - 'predicted_particle_positions': Numpy array of detected particle positions.
+            - 'predicted_particle_radii': Numpy array of detected particle radii.
+            - 'pipette_location': List containing pipette bounding box information if detected.
+        Returns:
+            None
+        """
+
         results = self.c_p['model'](self.c_p['image']).xywh[0].cpu().numpy()
         particle_positions = []
         radii = []
@@ -309,8 +291,10 @@ class DeepLearningAnalyserLDS(Thread):
         self.c_p['predicted_particle_positions'] = np.array(particle_positions)
         self.c_p['predicted_particle_radii'] = np.array(radii)
 
-
     def find_closest_particle(self, reference_position, return_idx):
+        """
+        Checks for the particle closest to the optical trap
+        """
         try:
             LX = reference_position[0]
             LY = reference_position[1]
@@ -333,7 +317,7 @@ class DeepLearningAnalyserLDS(Thread):
         except Exception as e:
             return None
 
-    def check_in_pipette(self, threshold=2_000, offset=np.array([0, 50])): # threhsold used to be 20_000
+    def check_in_pipette(self, threshold=2_000, offset=np.array([0, 50])): # threhsold distance used to be 20_000
         if not self.c_p['pipette_located'] or not self.c_p['tracking_on'] or self.c_p['pipette_location'] is None:
             return
         try:
@@ -364,8 +348,23 @@ class DeepLearningAnalyserLDS(Thread):
             self.c_p['particle_in_pipette'] = False
 
     def check_trapped(self, threshold=10_000):
-        # TODO threshold is a bit big I think.
-        # TODO does not work when zoomed in, I think this has been fixed
+        """
+        Checks if a particle is trapped within a specified threshold distance from the laser position.
+        This method updates the internal state to reflect whether any predicted particle is within the
+        threshold distance from the laser position (considered "trapped"). It also updates the trapped
+        particle's position (x, y, and optionally z) and radius in the internal data structure.
+        Parameters:
+            threshold (float, optional): The maximum squared distance from the laser position for a particle
+                to be considered trapped. Defaults to 10,000.
+        Returns:
+            bool: True if a particle is in view and within the threshold distance (trapped), False otherwise.
+        Notes:
+            - If no predicted particle positions are available, the function returns False and sets
+              `particles_in_view` to False.
+            - The function attempts to update the z-position of the trapped particle if z-tracking is enabled.
+              If the z-prediction is unavailable, the z-position is set to None.
+        """
+        
         if len(self.c_p['predicted_particle_positions']) < 1:
             self.particles_in_view = False
             return False
@@ -381,9 +380,6 @@ class DeepLearningAnalyserLDS(Thread):
             try:
                 self.c_p['Trapped_particle_position'][2] = self.c_p['z-predictions'][idx]
             except IndexError as ie:
-                # Issue here is that this may execute before z-predictions but after the particle positions are updated.
-                # Should probably be checked in the deep-learning thread.
-                # print("Index error in z-predictions")
                 self.c_p['Trapped_particle_position'][2] = None
         else:
             self.c_p['Trapped_particle_position'][2] = None
@@ -393,9 +389,6 @@ class DeepLearningAnalyserLDS(Thread):
         """
         Function which makes a prediction of the z-positions of the particles located with
         the deep learning model. The z-positions are then stored in the control parameters.
-
-        # TODO make it so that the reshaping is more flexible.
-        # TODO add a scaling factor to get something that is similar to true z-positions. Could be model dependent.
         """
 
         if not self.c_p['tracking_on'] or self.c_p['z-model'] is None:
@@ -442,16 +435,9 @@ class DeepLearningAnalyserLDS(Thread):
         else:
             z_vals = []
     
-        # Convert to list of z-values
-        #if not isinstance(z_vals, (list, tuple, np.ndarray)):
-            # If it's not, convert it to an array
-            # This will work for single numbers, converting them into an array with one element
-        #    input_variable = np.array([z_vals])
-            
         if isinstance(z_vals, float):
             z_vals = np.array([z_vals])
         self.c_p['z-predictions'] = z_vals
-        
 
     def run(self):
         
@@ -510,9 +496,10 @@ class PlotParticleProfileWidget(QMainWindow):
         self.timer.timeout.connect(self.update_plot_data)
         self.timer.start()
 
-
-
     def update_plot_data(self):
+        """
+        Updates the prediction data used for plotting.
+        """
         if len(self.c_p['predicted_particle_positions']) < 2:
             return
 
@@ -526,20 +513,16 @@ class PlotParticleProfileWidget(QMainWindow):
                 center_1 = [int(pos[0]), int(pos[1])]
             else:
                 center_2 = [int(pos[0]), int(pos[1])]
-        # TODO check if the image has the right shape
+
         self.y = self.c_p['image'][center_1[1],
                             center_1[0]-self.particle_width:
                             center_1[0]+self.particle_width]
     
-        # TODO set the legend to indicate where the particle is located, also have the software detect which particle is
-        # in the trap and which is not.
         self.data_line1.setData(self.x, self.y)  # Update the data.
         self.y2 = self.c_p['image'][center_2[1],
                             center_2[0]-self.particle_width:
                             center_2[0]+self.particle_width]
         self.data_line2.setData(self.x, self.y2)
-
-        # print(F" {np.mean((self.y-self.y2)**2)}")
 
 class DeepLearningControlWidget(QWidget):
     def __init__(self, c_p):
@@ -561,55 +544,6 @@ class DeepLearningControlWidget(QWidget):
         self.locate_pipette_button.setChecked(self.c_p['locate_pipette'])
         self.locate_pipette_button.setToolTip("Locate the pipette tip in the image")
         layout.addWidget(self.locate_pipette_button)
-
-        """
-        # Here are a bunch of options that we do not use anymore.
-        self.slider_label = QLabel("Set the cut-off for tracking")
-        layout.addWidget(self.slider_label)
-
-        self.load_pytorch_unet_button = QPushButton('Load pytorch U-Net')
-        self.load_pytorch_unet_button.pressed.connect(self.load_pytorch_unet)
-        self.load_pytorch_unet_button.setCheckable(False)
-        layout.addWidget(self.load_pytorch_unet_button)
-
-        self.training_image_button = QPushButton('Display training image')
-        self.training_image_button.pressed.connect(self.show_training_image)
-        self.training_image_button.setCheckable(False)
-        layout.addWidget(self.training_image_button)
-
-        self.save_network_button = QPushButton('Save network')
-        self.save_network_button.pressed.connect(self.save_network)
-        self.save_network_button.setCheckable(False)
-        layout.addWidget(self.save_network_button)
-
-        self.threshold_slider = QSlider(Qt.Orientation.Horizontal)
-        #self.threshold_slider.setOrientation(1)
-        self.threshold_slider.setMinimum(0)
-        self.threshold_slider.setMaximum(400)
-        self.threshold_slider.setValue(int(self.c_p['cutoff']))
-        self.threshold_slider.valueChanged.connect(self.set_threshold)
-        self.threshold_slider.setToolTip("Set the threshold for the particle detection")
-        layout.addWidget(self.threshold_slider)
-        
-        self.openParticleProfileButton = QPushButton('Open particle profile')
-        self.openParticleProfileButton.pressed.connect(self.openPlotWindow)
-        self.openParticleProfileButton.setCheckable(False)
-        layout.addWidget(self.openParticleProfileButton)
-
-        
-        
-        self.scale_label = QLabel("Set the prescale factor for tracking")
-        layout.addWidget(self.scale_label)
-
-        self.prescale_factor_spinbox = QDoubleSpinBox()
-        self.prescale_factor_spinbox.setRange(0.4, 3)
-        self.prescale_factor_spinbox.setSingleStep(0.1)
-        self.prescale_factor_spinbox.setValue(self.c_p['prescale_factor'])
-        self.prescale_factor_spinbox.valueChanged.connect(self.set_tracking_prescale_factor)
-        self.prescale_factor_spinbox.setToolTip("Set the particle scale factor for the tracking")
-        layout.addWidget(self.prescale_factor_spinbox)
-
-        """
 
         self.toggle_z_tracking_button = QPushButton('Z-tracking on')
         self.toggle_z_tracking_button.pressed.connect(self.toggle_z_tracking)
@@ -648,7 +582,7 @@ class DeepLearningControlWidget(QWidget):
         print(f"You want to open network {filename}")
         backend = tf.keras.models.load_model(filename) 
         self.c_p['model'] = dt.models.LodeSTAR(backend.model) 
-        self.c_p['prescale_factor'] = 0.106667 # TODO fix so this is changeable
+        self.c_p['prescale_factor'] = 0.106667
 
     def load_deeptrack_unet(self):
         network_name = QFileDialog.getExistingDirectory(self, 'Load network', self.c_p['recording_path'])
@@ -691,7 +625,6 @@ class DeepLearningControlWidget(QWidget):
         self.plotWindow.show()
  
     def train_network(self):
-        # TODO make sure one cannot do this while a network is being trained
         self.c_p['train_new_model'] = True
 
     def set_Z_zero(self):
@@ -703,13 +636,11 @@ class DeepLearningControlWidget(QWidget):
         network_name = QFileDialog.getOpenFileName(self, 'Load network')
         print(f"Opening network {network_name[0]}")
         try:
-            #self.c_p['z-model'] = torch.load(network_name[0])
-            model = load_yolov5_model(network_name[0]) #torch.hub.load('.', 'custom', path=network_name[0], source='local') 
+            model = load_yolov5_model(network_name[0])
             self.c_p['model'] = model
         except Exception as e:
             print(e)
             print("Could not load model")
-        #return model
 
     def show_training_image(self):
         plt.imshow(self.c_p['training_image'])
@@ -799,163 +730,3 @@ class MouseAreaSelect(MouseInterface):
 
     def getToolTip(self):
         return "Use the mouse to select an area to train network on by dragging."
-        
-
-
-"""
-# Old prediction methods for other networks.
-
-
-    def make_unet_prediction(self):
-        fac = 4 # TODO make this a parameter
-        s = np.shape(self.c_p['image'])
-        crop = self.c_p['image'][0:s[0]-s[0]%32,0:s[1]-s[1]%32] # TODO check indices
-        new_size = (int(np.shape(crop)[1]/fac),int(np.shape(crop)[0]/fac))
-        rescaled_image = cv2.resize(crop, dsize=new_size, interpolation=cv2.INTER_CUBIC)
-        rescaled_image = np.reshape(rescaled_image,[1,np.shape(rescaled_image)[0],np.shape(rescaled_image)[1],1])
-        tmp = np.float64(rescaled_image) / np.max(rescaled_image) # TODO test if change to 255 instead of max of image is more reliable
-        tmp *= 2
-        tmp -= (np.min(tmp)/2)
-        predicted_image = self.c_p['model'].predict(tmp)
-        x,y,_ = fpt.find_particle_centers_fast(predicted_image[0,:,:,0],self.c_p['cutoff']) # TODO Changed to fast here, check if it works
-        return np.array(x)*fac, np.array(y)*fac
-
-    def extract_particles_and_pipette(self, threshold=250):
-        # Extract the particle positions from first channel
-        prediction = torch_unet_z_prediction(self.c_p['model'], self.c_p['image'], self.c_p['device'], fac=self.c_p['prescale_factor'])
-        x_particle, y_particle, z_particle = extract_particles_3dpos(prediction, threshold)
-        
-        self.c_p['predicted_particle_positions'] = np.array([x_particle, y_particle]).T*self.c_p['prescale_factor']
-        self.c_p['z-predictions'] = z_particle
-        self.c_p['particle_prediction_made'] = True
-
-        # Exctract the pipette position
-        x_pipette, y_pipette, z_pipette = find_pipette_in_prediction(prediction[1,:,:], prediction[3,:,:])
-        if x_pipette is not None:
-            self.c_p['pipette_located'] = True
-            self.c_p['pipette_location'] = [x_pipette*self.c_p['prescale_factor'], y_pipette*self.c_p['prescale_factor'], z_pipette]
-
-    def weak_gpu_torch_unet_prediction(self):
-        # TODO make it so that this also incorporates the threhsolding on the GPU.
-        # TODO cut to area of interest here
-        width = self.c_p['image'].shape[0]
-        height = self.c_p['image'].shape[1]
-        max_w = 2400
-        if width > max_w:
-            x0 = int(width/2-max_w/2)
-            x1 = int(width/2+max_w/2)
-        else:
-            x0=0
-            x1 = width
-        if height > max_w:
-            y0 = int(height/2-max_w/2)
-            y1 = int(height/2+max_w/2)
-        else:
-            y0=0
-            y1 = height
-        #start_pos_x = self.data_channels['Motor_x_pos'].get_data(1)[0]
-        #start_pos_y = self.data_channels['Motor_y_pos'].get_data(1)[0]
-        prediction = torch_unet_prediction(self.c_p['model'], self.c_p['image'][x0:x1,y0:y1], self.c_p['device'], fac = self.c_p['prescale_factor'], threshold=self.c_p['cutoff']) 
-        if len(prediction) == 0:
-            return prediction
-        #dx = (start_pos_x - self.data_channels['Motor_x_pos'].get_data(1)[0])/self.c_p['ticks_per_pixel']
-        #dy = (start_pos_y - self.data_channels['Motor_y_pos'].get_data(1)[0])/self.c_p['ticks_per_pixel']
-        prediction[:,1] += x0 #- dy # SIgne etc wrong maybe?
-        prediction[:,0] += y0 #+ dx
-        self.c_p['particle_prediction_made'] = True
-        return prediction
-
-    def make_prediction(self, data=None):
-        '''
-        Predicts particle positions in the center square of the current image
-        being displayed.        
-
-        Returns
-        -------
-        positions : TYPE
-            DESCRIPTION.
-
-        '''
-        
-        assert self.c_p['model'] is not None, "No model to make the prediction"
-        
-        if self.c_p['network'] == "DeepTrack Unet":
-            return self.make_unet_prediction()
-        if self.c_p['network'] == "Pytorch Unet":
-            return self.weak_gpu_torch_unet_prediction()  # When running on weak laptop GPU
-            # return torch_unet_prediction(self.c_p['model'], self.c_p['image'], self.c_p['device'], fac=self.c_p['prescale_factor']) 
-        # TODO this is not really used anymore, can probably remove it
-        # Prepare the image for prediction
-        if data is None:
-            data = np.array(self.c_p['image'])
-
-        height = int(self.c_p['prescale_factor']*np.shape(data)[0])
-        width = int(self.c_p['prescale_factor']*np.shape(data)[1])
-        data = np.array(Image.fromarray(data).resize((width,height)))
-        data = np.reshape(data,[1,height, width,1])
-        try:
-            alpha = self.c_p['alpha']
-            cutoff= self.c_p['cutoff']
-            beta = 1-alpha
-            positions = self.c_p['model'].predict_and_detect(data, alpha=alpha, cutoff=cutoff, beta=beta)# TODO have alpha, cut_off etc adaptable.
-
-        except Exception as e:
-            print("Deeptrack error \n", e)
-            # Get the error "h = 0 is ambiguous, use local_maxima() instead?"
-            return np.array([[300,300]])
-        return np.array(positions[0]) / self.c_p['prescale_factor']# / self.c_p['image_scale'] Using pixels of camera as default unit
-    
-    def locate_pipette(self):
-        # TODO check if cupy is installed. If not, use numpy
-        start_pos_x = self.data_channels['Motor_x_pos'].get_data(1)[0]
-        start_pos_y = self.data_channels['Motor_y_pos'].get_data(1)[0]
-        if self.c_p['tracking_on'] and len(self.c_p['predicted_particle_positions'])>0:
-            # Remove the particle in the pipette from the image prediction
-            self.c_p['pipette_location'][1], self.c_p['pipette_location'][0], _ = fpt.find_pipette_top_GPU(self.c_p['image'],subtract_particles=True,
-                                                                                                           positions=self.c_p['predicted_particle_positions'])
-        else:
-            self.c_p['pipette_location'][1], self.c_p['pipette_location'][0], _ = fpt.find_pipette_top_GPU(self.c_p['image'])
-        if self.c_p['pipette_location'][0] is None:
-            return
-
-        dx = start_pos_x - self.data_channels['Motor_x_pos'].get_data(1)[0]
-        dy = start_pos_y - self.data_channels['Motor_y_pos'].get_data(1)[0]
-        self.c_p['pipette_location'][1] -= dy / self.c_p['ticks_per_pixel']
-        self.c_p['pipette_location'][0] += dx / self.c_p['ticks_per_pixel']
-
-        self.c_p['pipette_located'] = True # TODO add location in motor steps as well.
-
-
-
-    def train_new_model(self, training_data):
-        '''
-        Trains a Lode-star model on the data supplied in training data.
-
-        Parameters
-        ----------
-        training_data : TYPE numpy array 
-            DESCRIPTION. A NxN array of numbers or NxNx3 (if color image) on
-            which a network is to be trained.
-
-        Returns
-        -------
-        None.
-
-        '''
-                
-        # Check that the data is square
-        assert np.shape(training_data)[0] == np.shape(training_data)[1], "Training data not square"
-
-        self.c_p['model'] = dt.models.LodeSTAR(input_shape=(None, None, 1))
-        # Rescale training data to fit the standard size which is 64
-        self.pred_image_scale = 1
-        original_width = np.shape(training_data)[0]
-        if original_width > 64:
-            self.c_p['prescale_factor'] = 64 / original_width
-            # TODO use PIL rescale and not cv2, may make a difference!
-            training_data = cv2.resize(training_data, dsize=(64,64), interpolation=cv2.INTER_CUBIC)
-        training_data = dt.Value(training_data)
-        
-        self.c_p['model'].fit(training_data, epochs=self.c_p['epochs'], batch_size=8) # Default
-
-"""

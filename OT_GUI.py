@@ -9,8 +9,6 @@ import cv2 # Certain versions of this won't work
 import pickle
 import math
 
-# TODO ensure that pressed buttons appears pressed when they are pressed. Does not do so with latest pyqt
-
 from PyQt6.QtWidgets import (
     QMainWindow, QApplication,
     QLabel, QCheckBox, QComboBox, QListWidget, QLineEdit, QSpinBox,
@@ -21,20 +19,14 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, pyqtSlot, QRunnable, QObject, QPoint, QRect, QTimer
 from PyQt6.QtGui import QPixmap, QImage, QPainter, QBrush, QColor, QAction, QDoubleValidator, QPen, QIntValidator, QKeySequence, QFont, QPolygon
 
-# from pyqtgraph import PlotWidget, plot
-# import pyqtgraph as pg
-from random import randint
+# from random import randint
 import numpy as np
-from time import sleep, time
+from time import sleep
 from functools import partial
-# TODO remove the things that are not used for the minitweezers such as the thorlabs motors!
 import BaslerCameras
-#import ThorlabsCameras # Chrashed upon opening the filemenu when this was not here.
-#import clr
-import win32com.client as win32  # For reasons this needs to be here for the filmenu to work (as tested on windows 11).
 
-import asyncio # TODO finish the move to asyncio saving. May require quite a bit of work to get it to work properly.
-#from concurrent.futures import ThreadPoolExecutor
+import win32com.client as win32  # This needs to be here for the filmenu to work (as tested on windows 11).
+
 
 from CameraControlsNew import CameraThread, VideoWriterThread, CameraClicks
 from ControlParameters import default_c_p, get_data_dicitonary_new, ControlParametersViewer
@@ -46,24 +38,17 @@ import MotorControlWidget
 from QWidgetDockContainer import QWidgetWindowDocker
 from LaserPiezosControlWidget import LaserPiezoWidget, MinitweezersLaserMove
 from CameraMeasurementTool import CameraMeasurements
-from DeepLearningThread import DeepLearningControlWidget , ParticleCNN#, DeepLearningAnalyserLDS #,  # TODO load it in a nicer way
+from DeepLearningThread import DeepLearningControlWidget
 from PlanktonViewWidget import PlanktonViewer
 from DataChannelsInfoWindow import CurrentValueWindow
 from ReadArduinoPortenta import PortentaComms #For some reason we need to import this to be able to open the file explorer.
 from PortentaMultiprocess import PortentaComms
-
-from PullingProtocolWidget import PullingProtocolWidget
-from StepperObjective import ObjectiveStepperController, ObjectiveStepperControllerToolbar
+from PullingProtocolWidget_2 import PullingProtocolWidget
+from StepperObjective import ObjectiveStepperControllerToolbar
 from MicrofluidicsPumpController import MicrofluidicsControllerWidget, ElvesysMicrofluidicsController, ConfigurePumpWidget
-
-import AutocontrollerV3 as AutoController
+import AutocontrollerV4 as AutoController # V4 is the latest
 import LaserController
-
-# Using thorlabs camera
 from ThorlabsScientificCameras import ThorlabsScientificCamera as TSC
-
-# TODO put the camera window into the main window in the same manner as the other widgets. Also add the force and postiion
-# windows below the main window as there is often space there to do stuff.
 
 class Worker(QThread):
     '''
@@ -100,11 +85,10 @@ class Worker(QThread):
         self.red_pen = QPen()
         self.red_pen.setColor(QColor('red'))
         self.red_pen.setWidth(3)
-        # self.signals = WorkerSignals()
 
     def testDataUpdate(self, max_length=10_000):
         # Fill data dicitonary with fake data to test the interface.
-        # Used only for testing
+        # Used ONLY for testing
         self.dt = 1000/max_length
 
         if len(self.data_channels['Time'].data) < max_length:
@@ -130,65 +114,25 @@ class Worker(QThread):
             self.data_channels['Z-position'].put_data(np.random.rand() * 2 - 1)
             self.data_channels['Motor_position'].put_data((self.data_channels['Time'].get_data(1) / 10) + np.random.rand())
 
-    def draw_particle_positions(self, centers, pen=None, radius=250, show_z_info=False):
-        # TODO add function also for crosshair to help with alignment.
-        try:
-            rx = int(radius/self.c_p['image_scale'])
-        except:
-            rx = 20
-        ry = rx
-        font_size = int(rx/4)
-
-        # Create a QFont object with the desired font size
-        self.qp.setFont(QFont("Arial", font_size))
-        if pen is None:
-            self.qp.setPen(self.red_pen)
-        else:
-            self.qp.setPen(pen)
-        for idx, pos in enumerate(centers):
-            # Adopting what we draw to the predicted radii
-
-            try:
-                # TODO add radii as a separate array as input
-                rx = int(2*self.c_p['predicted_particle_radii'][idx]/self.c_p['image_scale'])
-                ry = rx
-            except Exception as E:
-                rx = int(240/self.c_p['image_scale'])
-                ry = rx
-                pass
-
-            x = int(pos[0]/ self.c_p['image_scale'])
-            y = int(pos[1]/ self.c_p['image_scale'])
-
-            self.qp.drawEllipse(x-int(rx/2)-1, y-int(ry/2)-1, rx, ry)
-                    # Check if information display is enabled
-            if show_z_info:
-                # You can customize this part to show whatever information you want
-                # For example, showing the index of the particle or custom info passed in a list
-
-                try:
-                    if idx > len(self.c_p['z-predictions']) or len(self.c_p['z-predictions']) == 0:
-                        info_text = str(idx)
-                        continue
-                except TypeError:
-                    continue
-                try:
-                    info_text = 'z: ' + str(round(self.c_p['z-predictions'][idx],1))
-
-                    # Position for the text: adjust the x, y as needed for text to not overlap the circle
-                    text_x = int(x +1.1*rx)
-                    text_y = int(y)
-
-                    # Draw the text
-                    self.qp.drawText(text_x, text_y, info_text)
-                except Exception as E:
-                    # There is an index errror here which is harmless, caused by a missing detection in the deep learning thread and a 
-                    # the image being updated too quickly for the predictions to catch on. 
-                    pass
-
-
-
-    def draw_particle_positions_new(self,centers, pen=None, radii=None, info=None, info_labels=None):
+    def draw_particle_positions(self,centers, pen=None, radii=None, info=None, info_labels=None):
+        """
+            Draws ellipses representing particle positions on a QPainter canvas, with optional radii and annotation.
+            This function iterates over a list of particle center coordinates and draws an ellipse for each particle.
+            The size of each ellipse can be specified via the `radii` parameter, or defaults to a preset value.
+            Optionally, additional information (such as numeric values or labels) can be displayed next to each particle.
+            The appearance of the ellipses can be customized with a QPen object.
+            Parameters:
+                centers (list of tuple): List of (x, y) coordinates for particle centers.
+                pen (QPen, optional): Pen to use for drawing the ellipses. Defaults to self.red_pen if not provided.
+                radii (list of float, optional): List of radii for each particle. If not provided, a default radius is used.
+                info (list, optional): List of information values to display next to each particle. If None, no info is displayed.
+                info_labels (str, optional): Label prefix to display before each info value.
+            Notes:
+                - The function adapts ellipse size and text position based on the current image scale.
+                - Handles missing or mismatched info gracefully.
+                - Intended for use within a class that manages a QPainter instance (`self.qp`) and configuration (`self.c_p`).
+        """
+        
         if radii is None:
             radii = [250]*len(centers)
         if len(radii)>0:
@@ -210,9 +154,7 @@ class Worker(QThread):
             self.qp.setPen(pen)
         for idx, pos in enumerate(centers):
             # Adopting what we draw to the predicted radii
-
             try:
-                # TODO add radii as a separate array as input
                 rx = int(2*radii[idx]/self.c_p['image_scale'])
                 ry = rx
             except Exception as E:
@@ -229,8 +171,6 @@ class Worker(QThread):
                     # Check if information display is enabled
             if info is not None:
                 # You can customize this part to show whatever information you want
-                # TODO make it possible to show more than just numbers
-
                 try:
                     if idx > len(info) or len(info) == 0:
                         info_text = str(idx)
@@ -239,7 +179,6 @@ class Worker(QThread):
                     continue
                 try:
                     info_text = info_labels + str(round(info[idx],1))
-
                     # Position for the text: adjust the x, y as needed for text to not overlap the circle
                     text_x = int(x +1.1*rx)
                     text_y = int(y)
@@ -285,11 +224,12 @@ class Worker(QThread):
 
     def draw_lasers(self):
         """
-        Marks the laser positions on the image using two different crosses
-
+        Marks the laser positions on the image using two crosses, one per laser
         """
 
         length = 10  # half-length of the cross arms
+
+        #Laser A
         self.qp.setPen(self.red_pen)
         x = int((self.c_p['laser_position_A_predicted'][0] - self.c_p['AOI'][0]) / self.c_p['image_scale'])
         y = int((self.c_p['laser_position_A_predicted'][1] - self.c_p['AOI'][2]) / self.c_p['image_scale'])
@@ -297,7 +237,8 @@ class Worker(QThread):
         self.qp.drawLine(x - length, y, x + length, y)
         # Draw the vertical line of the cross
         self.qp.drawLine(x, y - length, x, y + length)
-        
+
+        # Laser B        
         self.qp.setPen(self.blue_pen)
         x = int((self.c_p['laser_position_B_predicted'][0] - self.c_p['AOI'][0]) / self.c_p['image_scale'])
         y = int((self.c_p['laser_position_B_predicted'][1] - self.c_p['AOI'][2]) / self.c_p['image_scale'])
@@ -307,10 +248,17 @@ class Worker(QThread):
         self.qp.drawLine(x, y - length, x, y + length)
 
     def draw_force(self):
+        """
+        Draws a force vector as an arrow on the GUI, representing the total force acting on a trapped particle.
+        This method checks if a particle is currently trapped. If so, it calculates the starting position of the arrow
+        based on the trapped particle's position and the image scale. The direction and length of the arrow are determined
+        by the total force components (F_total_X, F_total_Y), scaled appropriately. The arrow is drawn using a blue pen,
+        and an arrowhead is added to indicate direction.
+        The method uses the QPainter object (`self.qp`) to render the line and arrowhead on the GUI.
+        """
 
         if not self.data_channels['particle_trapped'].get_data(1)[0]:
             return
-        # TODO deal with the case when the force leaves the frame
         x = self.c_p['Trapped_particle_position'][0] / self.c_p['image_scale']
         y = self.c_p['Trapped_particle_position'][1] / self.c_p['image_scale']
         start_point = QPoint(int(x), int(y))
@@ -341,18 +289,14 @@ class Worker(QThread):
         ])
 
         # Draw the arrowhead
-        self.qp.drawPolygon(arrow_head)
-
-        
+        self.qp.drawPolygon(arrow_head)      
 
     def get_boring_particles(self):
         """
-        Extracts the particles that are not the trapped particle or the pipette particle, returns the index
+        Extracts the particles that are not the trapped particle or the pipette particle, returns the indices
         """
 
         positions = np.copy(self.c_p['predicted_particle_positions'])
-        #radii = np.copy(self.c_p['predicted_particle_radii'])
-        #info = np.copy(self.c_p['z-predictions'])
         if len(positions) == 0:
             return None
         mask = np.ones(len(positions), dtype=bool)
@@ -373,12 +317,14 @@ class Worker(QThread):
         return mask
 
     def run(self):
+        """
+        Main loop for updating and rendering the GUI image frame.
+        Continuously processes image data, applies preprocessing, and updates the display with various overlays such as particles, pipette, lasers, and other graphical elements based on the current control parameters. Handles both test and live modes, manages frame scaling, and emits the updated QPixmap for display. Also manages drawing of additional information such as particle positions, force vectors, and zoom rectangles, with error handling for missing or mismatched data.
+        This function is intended to be run in a separate thread or process to keep the GUI responsive.
+        """
 
-        # Initialize pens to draw on the images
-        
-        while True:
+        while self.c_p['program_running']:
             if self.test_mode:
-                # TODO have this add data channels if they are not already created.
                 self.testDataUpdate()
 
             if self.c_p['image'] is not None:
@@ -386,7 +332,7 @@ class Worker(QThread):
             else:
                 print("Frame missed!")
                 continue
-            #    print("Frame missed!")
+
             W, H = self.c_p['frame_size']
             self.c_p['image_scale'] = max(self.image.shape[1]/W, self.image.shape[0]/H)
             self.preprocess_image()            
@@ -406,11 +352,13 @@ class Worker(QThread):
                 W,H,
                 Qt.AspectRatioMode.KeepAspectRatio,
             )
-            # Give other things time to work, roughly 40-50 fps default.
-            sleep(0.04) # Sets the FPS
+            
+            sleep(0.04) # This practically sets the refresh rate of the video feed, 25 fps default.
             
             # Paint extra items on the screen
+
             self.qp = QPainter(picture)
+
             # Draw zoom in rectangle
             try:
                 self.c_p['click_tools'][self.c_p['mouse_params'][5]].draw(self.qp)
@@ -424,7 +372,6 @@ class Worker(QThread):
 
                 
             if self.c_p['draw_pipette'] and self.c_p['pipette_location'][0] is not None and self.c_p['pipette_located']:
-
                 self.draw_pipette()
 
             # Draw the particles if the parameters tell us to do so
@@ -434,7 +381,6 @@ class Worker(QThread):
 
                 # Check if ther are particles in the trap/pipette if that is the case then don't draw them in red.                               
                 indices = self.get_boring_particles()
-                #if self.c_p['draw_z_text']:
                 try:
                     info = self.c_p['z-predictions'][indices]
                     centers=self.c_p['predicted_particle_positions'][indices]
@@ -447,7 +393,7 @@ class Worker(QThread):
                 if not self.c_p['draw_z_text']:
                     info = None
                     info_labels = None
-                self.draw_particle_positions_new(
+                self.draw_particle_positions(
                     centers=centers,
                     radii=radii,
                     info=info,
@@ -462,14 +408,14 @@ class Worker(QThread):
                     if self.c_p['draw_z_text']:
                         info = [self.c_p['Trapped_particle_position'][2]]
                         info_labels = 'z: '
-                    self.draw_particle_positions_new(
+                    self.draw_particle_positions(
                         [self.c_p['Trapped_particle_position'][0:2]],
                         radii=[self.c_p['Trapped_particle_position'][3]],
                         pen=self.blue_pen,
                         info=info,
                         info_labels=info_labels,)
                     if self.c_p['draw_force']:
-                        self.draw_force() # TODO add toggle for this
+                        self.draw_force()
                 
                 if self.c_p['particle_in_pipette'] and self.c_p['locate_pipette'] and self.c_p['pipette_located']:
   
@@ -478,7 +424,7 @@ class Worker(QThread):
                     if self.c_p['draw_z_text']:
                         info = [self.c_p['pipette_particle_location'][2]]
                         info_labels = 'z: '
-                    self.draw_particle_positions_new(
+                    self.draw_particle_positions(
                         [self.c_p['pipette_particle_location'][0:2]],
                         radii=[self.c_p['pipette_particle_location'][3]],
                         pen=self.green_pen,
@@ -493,6 +439,22 @@ class Worker(QThread):
 
 
 class MainWindow(QMainWindow):
+    """
+    MainWindow
+    This class implements the main graphical user interface (GUI) window for the Optical Tweezers (OT) control software.
+    It is built on top of QMainWindow and provides a comprehensive interface for controlling, monitoring, and recording experiments involving optical tweezers.
+    Key Features:
+    - Initializes and manages hardware threads for cameras, microcontrollers, and other devices.
+    - Provides toolbars and menus for camera control, data recording, and experiment configuration.
+    - Handles live video display, image snapshots, and video recording.
+    - Manages data acquisition, saving, and export functionalities.
+    - Offers interactive controls for motors, lasers, microfluidics, and other experiment components via dockable widgets.
+    - Supports saving and recalling experiment positions, as well as zeroing and resetting force/position sensors.
+    - Integrates plotting windows for live data visualization and analysis.
+    - Handles user interactions such as mouse events for experiment manipulation and tool selection.
+    The MainWindow class serves as the central hub for user interaction, hardware communication, and experiment management in the OT software suite.
+    """
+
 
     def __init__(self):
         super(MainWindow, self).__init__()
@@ -501,34 +463,31 @@ class MainWindow(QMainWindow):
         self.c_p = default_c_p()
         self.data_channels = get_data_dicitonary_new()
         self.video_idx = 0
-        self.data_idx = 0 # Index of data save
-        self.loop = asyncio.get_event_loop()
-
+        self.data_idx = 0 # Index of data saved
         self.saving = False
-        # Start camera threads
+
+        # Start camera thread
         self.CameraThread = None
         try:
             camera = None
+            # Cameras from two manufacturors are currently implemented, Thorlabs and Basler
+            # They use different classes. To change manufacturor change the camera_type in the control parameters
             if self.c_p['camera_type'] == "Thorlabs":
                 print("Thorlabs camera selected")
                 camera = TSC()
             else:
                 print("Basler camera selected")
-                camera = BaslerCameras.BaslerCamera()
-            # camera if there is no camera connected.
-            # camera = ThorlabsCameras.ThorlabsCamera()
-
-
-            
+                camera = BaslerCameras.BaslerCamera()            
             if camera is not None:
                 self.CameraThread = CameraThread(self.c_p, camera)
                 self.CameraThread.start()
         except Exception as E:
             print(f"Camera error!\n{E}")
-        self.TemperatureThread = None
 
+        self.TemperatureThread = None
         self.channelView = None
         self.PortentaReaderT = None
+
         try:
             
             self.PortentaReaderT = PortentaComms(self.c_p, self.data_channels) #portentaReaderThread(self.c_p, self.data_channels) #portentaComms(self.c_p, self.data_channels)
@@ -539,7 +498,6 @@ class MainWindow(QMainWindow):
             print(E)
 
         try:
-            # TODO fix a better way to save then to send the main window to the thread.
             self.AotuControllerThread = AutoController.autoControllerThread(self.c_p, self.data_channels, main_window=self)
             self.AotuControllerThread.start()
             print("Auto controller started")
@@ -559,9 +517,6 @@ class MainWindow(QMainWindow):
         self.VideoWriterThread = VideoWriterThread(2, 'video thread', self.c_p)
         self.VideoWriterThread.start()
 
-        #self.DeepThread = DeepLearningAnalyserLDS(self.c_p, self.data_channels)
-        #self.DeepThread.start()
-
         self.plot_windows = None
 
         # Set up camera window
@@ -578,7 +533,7 @@ class MainWindow(QMainWindow):
         th.changePixmap.connect(self.setImage)
         th.start()
 
-        # Create toolbar
+        # Create toolbar for camera
         create_camera_toolbar_external(self)
         self.addToolBarBreak() 
         self.create_mouse_toolbar()
@@ -590,9 +545,6 @@ class MainWindow(QMainWindow):
         self.action_menu()
         self.ObjectiveStepperControlltoolbar= ObjectiveStepperControllerToolbar(self.c_p,self.ArduinoUnoSerial,self)
         self.addToolBar(Qt.ToolBarArea.RightToolBarArea, self.ObjectiveStepperControlltoolbar)
-
-        # self.MotorControllerToolbar = MotorControlWidget.MotorControllerToolbar(self.c_p)
-        # self.addToolBar(Qt.ToolBarArea.LeftToolBarArea, self.MotorControllerToolbar)
         
         # Creating UI elements to be used in the main window
         self.motorWidget = MotorControlWidget.MotorControllerWindow(self.c_p)
@@ -610,8 +562,6 @@ class MainWindow(QMainWindow):
         self.pullingProtolWidget = PullingProtocolWidget(self.c_p, self.data_channels)
         self.pullingProtocolDock = QWidgetWindowDocker(self.pullingProtolWidget, "Pulling protocol")
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.pullingProtocolDock)
-        #self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.pullingProtocolDock)
-
         
         self.microfluidicsController = ElvesysMicrofluidicsController()
         self.microfluidicsController.connect(self.c_p['pump_adress'])
@@ -626,16 +576,20 @@ class MainWindow(QMainWindow):
     def setImage(self, image):
         self.camera_window_label.setPixmap(QPixmap.fromImage(image))
 
-    def start_threads(self):
-        pass
-    
     def create_mouse_toolbar(self):
-        # Here is where all the tools in the mouse toolbar are added
+        """
+        Creates and configures the mouse toolbar with various interactive tools for the application.
+        This method initializes the mouse toolbar by adding a set of tool widgets (such as camera clicks,
+        motor control, laser movement, and measurement tools) to the application's toolbar. Each tool is
+        associated with a QAction, which is added to the toolbar and can be triggered via mouse or keyboard
+        shortcuts (Ctrl+1 to Ctrl+0). The toolbar allows users to select and activate different mouse tools
+        for interacting with the application's main interface.
+        The currently selected mouse tool is set based on the value in `self.c_p['mouse_params'][5]`.
+        """
+
         self.c_p['click_tools'].append(CameraClicks(self.c_p))
         self.c_p['click_tools'].append(MotorControlWidget.MinitweezersMouseMove(self.c_p, self.data_channels))
-        # self.c_p['click_tools'].append(MotorControlWidget.MotorClickMove(self.c_p,)) # Thorlabs motors and controller
         self.c_p['click_tools'].append(MinitweezersLaserMove(self.c_p))
-        #self.c_p['click_tools'].append(MouseAreaSelect(self.c_p))
         self.c_p['click_tools'].append(AutoController.SelectLaserPosition(self.c_p))
         self.c_p['click_tools'].append(CameraMeasurements(self.c_p))
 
@@ -659,6 +613,16 @@ class MainWindow(QMainWindow):
         self.mouse_actions[self.c_p['mouse_params'][5]].setChecked(True)
         
     def set_mouse_tool(self, tool_no=0):
+        """
+        Sets the active mouse tool based on the provided tool number.
+        This method updates the internal state to reflect the selected mouse tool,
+        unchecks all mouse action buttons, and checks the button corresponding to
+        the selected tool. If the provided tool number exceeds the available tools,
+        the method returns without making changes.
+        Args:
+            tool_no (int, optional): The index of the mouse tool to activate. Defaults to 0.
+        """
+
         if tool_no > len(self.c_p['click_tools']):
             return
         self.c_p['mouse_params'][5] = tool_no
@@ -668,9 +632,19 @@ class MainWindow(QMainWindow):
         print("Tool set to ", tool_no)
 
     def set_gain(self, gain):
+        """
+        Sets the camera gain value based on the input from the gain_LineEdit widget.
+        Retrieves the gain value entered by the user, converts it to a float, and updates the camera parameters
+        dictionary (`self.c_p`) with the new gain value. Also flags that new camera settings are available.
+        If the input is invalid (e.g., empty or non-numeric), the function silently ignores the error.
+        Parameters
+        ----------
+        gain : float
+            The gain value to set (not used directly, as the value is read from the widget).
+        """
+        
         gain = float(self.gain_LineEdit.text())
         try:
-            #g = min(float(gain), 255)
             self.c_p['image_gain'] = gain
             self.c_p['new_settings_camera'] = [True, 'gain']
         except ValueError:
@@ -678,7 +652,16 @@ class MainWindow(QMainWindow):
             pass
 
     def create_filemenu(self):
-
+        """
+        Creates the 'File' menu and its submenus for the application's main menu bar.
+        This method adds the following to the menu:
+            - A 'Recording format' submenu to select the video file format (avi, mp4, npy).
+            - An 'Image format' submenu to select the image file format (png, jpg, npy).
+            - An action to set the save path for experiment files.
+            - An action to set the default filename for saved data, video, and image files.
+            - An action to save data to a .npy file.
+        Each menu item is connected to its corresponding handler method.
+        """
         file_menu = self.menu.addMenu("File")
         file_menu.addSeparator()
 
@@ -721,28 +704,32 @@ class MainWindow(QMainWindow):
         save_data_action.setStatusTip("Save data to an npy file")
         save_data_action.triggered.connect(self.save_data_to_dict) # Dump data before
         file_menu.addAction(save_data_action)
-
-    def dump_data(self):
-        text, ok = QInputDialog.getText(self, 'Filename dialog', 'Set name for data to be saved:')
-        if not ok:
-            print("No valid name entered")
-            return
-        path = self.c_p['recording_path'] + '/' + text
-        print(f"Saving data to {path}")
-        np.save(path,  self.data_channels, allow_pickle=True)
     
     def record_data(self):
+        """
+        Toggles the data recording state.
+        If data recording is currently active, this method stops the recording process,
+        updates the toggle action text to "Start recording data", and unchecks the toggle.
+        If data recording is not active, it starts the recording process, updates the toggle
+        action text to "Stop recording data", and checks the toggle.
+        This method is typically connected to a UI action for starting or stopping data recording.
+        """
+
         if (self.saving):
             self.stop_saving()
             self.toggle_data_record_action.setText("Start recording data")
             self.toggle_data_record_action.setChecked(False)
-            #TODO have this detecting when it is called from another file so that it sets the button to be pushed.
         else:
             self.start_saving()
             self.toggle_data_record_action.setText("Stop recording data")
             self.toggle_data_record_action.setChecked(True)
 
     def start_saving(self):
+        """
+        Initializes the saving process by recording the current indices of relevant data channels.
+        Sets the starting indices for PSD, motor, and prediction data channels, and marks the saving state as active.
+        """
+        
         self.start_idx = self.data_channels['PSD_A_P_X'].index
         self.start_idx_motors = self.data_channels['Motor_x_pos'].index # Fewer data points for motors
         self.start_idx_prediction = self.data_channels['trapped_particle_x_position'].index
@@ -750,18 +737,21 @@ class MainWindow(QMainWindow):
         
         print("Saving started")
 
-    async def async_stop_save(self):
-        pass
-        await self.run_in_executor(None, self.stop_saving())
-
     def stop_saving(self):
-        # TODO ensure that the there is no maximum limit on the filesize
-        # - too many ifs and elses to make the code nice
-        # - test this carefully and see if there is some better way to do this,
-        #    i.e can we handle also the other channels such as computer time efficiently here?
-        # - derived channels did not get saved correctly here, check if the fix works.
-        #   Need to add parameter to the channel to indicate the sampling rate of it.
-        # For instance by stopping, saving and making a new file. Not the most elegant solution but it should work.
+        """
+        Stops the data saving process, collects the recorded data from all relevant channels,
+        and saves it to a file.
+        This method finalizes the current data recording session by:
+        - Setting the saving flag to False.
+        - Determining the stop indices for each data channel.
+        - Handling cases where channels may not have sampled correctly by adjusting indices.
+        - Extracting the relevant data slices for each channel, accounting for channels sampled at different rates.
+        - Saving the collected data to a file using pickle.
+        - Incrementing the data file index for future recordings.
+        The method ensures that data from all channels is synchronized as much as possible,
+        and handles wrap-around cases where the stop index is less than the start index.
+        """
+
         self.saving = False
         print("Saving stopped")
         self.stop_idx = self.data_channels['PSD_A_P_X'].index
@@ -780,7 +770,6 @@ class MainWindow(QMainWindow):
         if self.start_idx_prediction == self.stop_idx_prediction:
             self.stop_idx_prediction = self.stop_idx_prediction + 1
 
-         # TODO make sure that it saves continously and not just once at the end...
         for channel in self.data_channels:
             if self.data_channels[channel].saving_toggled:
                 # Handle the different rates at which the channels are sampled to get the right data to be saved.
@@ -810,6 +799,14 @@ class MainWindow(QMainWindow):
         self.data_idx += 1 # Moved here from start saving
 
     def save_data_to_dict(self):
+        """
+        Prompts the user for a filename, collects data from enabled data channels, and saves the data to a file.
+        The function displays an input dialog to the user to specify a filename for saving the data. If a valid name is entered,
+        it gathers data from all data channels that have saving enabled, and serializes the collected data into a file using pickle.
+        The file is saved in the directory specified by 'recording_path' in the configuration parameters.
+        Returns:
+            None
+        """
 
         text, ok = QInputDialog.getText(self, 'Filename dialog', 'Set name for data to be saved:')
         if not ok:
@@ -823,7 +820,6 @@ class MainWindow(QMainWindow):
             if self.data_channels[channel].saving_toggled:
                 data[channel] = self.data_channels[channel].get_data_spaced(1e9)
         print(f"Saving data to {filename}")
-        #np.save(path, data, allow_pickle=True)
         with open(filename, 'wb') as f:
                 pickle.dump(data, f)
 
@@ -880,8 +876,18 @@ class MainWindow(QMainWindow):
         action_menu.addAction(self.central_circle_button)
 
     def zero_force_PSDs(self):
-        # Very weird to first convert to uint and then add 32768
-                
+        """
+        Zeroes the force readings from the PSD (Position Sensitive Detectors) channels by updating the mean force offsets.
+        This method calculates the mean values from the latest data samples of the PSD force channels (X and Y for both A and B),
+        updates the corresponding force mean offsets, and recalculates the PSD means accordingly. It also sends a command to 
+        trigger the update on the connected hardware and zeroes the Z force by adjusting the null offset for the total Z force channel.
+        Side Effects:
+            - Modifies 'PSD_force_means' and 'PSD_means' in the configuration parameter dictionary (self.c_p).
+            - Updates the 'Photodiode_sum_to_force' Z offset.
+            - Sets a command flag for the hardware.
+            - Prints the updated PSD mean and force mean for the first channel.
+        """
+        
         self.c_p['PSD_force_means'][0] += np.mean(self.data_channels['PSD_A_F_X'].get_data_spaced(1000))
         self.c_p['PSD_force_means'][1] += np.mean(self.data_channels['PSD_A_F_Y'].get_data_spaced(1000))
         self.c_p['PSD_force_means'][2] += np.mean(self.data_channels['PSD_B_F_X'].get_data_spaced(1000))
@@ -920,7 +926,6 @@ class MainWindow(QMainWindow):
         self.c_p['portenta_command_1'] = 5
 
     def add_position(self, idx):
-        # Adds position to submenu
         position_command = partial(self.goto_position, idx)
         position_action = QAction(self.c_p['saved_positions'][idx][0], self)
         position_action.setStatusTip(f"Move to saved position {self.c_p['saved_positions'][idx][0]}")
@@ -982,11 +987,20 @@ class MainWindow(QMainWindow):
         else:
             print("No position saved")
 
-
-
     def goto_position(self,idx):
+        """
+        Moves the system to a saved position specified by the given index.
+        Parameters:
+            idx (int): Index of the saved position to move to.
+        Behavior:
+            - Prints the name or identifier of the target position.
+            - If the index is out of range, the function returns without action.
+            - If a move is already in progress (`move_to_location` is True), stops the current move and resets target speeds.
+            - If the minitweezers device is connected, sets its target position to the saved coordinates and initiates movement.
+            - Otherwise, sets the stepper motor's target position to the saved coordinates.
+        """
+
         print(f"Moving to position {self.c_p['saved_positions'][idx][0]}")
-        # TODO replace this with the generic go2position from the autocontroller.
         if idx>len(self.c_p['saved_positions']):
             return
         if self.c_p['move_to_location']:
@@ -1043,12 +1057,6 @@ class MainWindow(QMainWindow):
         self.open_motor_window.triggered.connect(self.open_motor_control_window)
         self.open_motor_window.setCheckable(False)
         window_menu.addAction(self.open_motor_window)
-
-        self.open_stepper_window = QAction("Objective motor window", self)
-        self.open_stepper_window.setToolTip("Open window for manual motor control, objective stepper motor.")
-        self.open_stepper_window.triggered.connect(self.open_stepper_objective)
-        self.open_stepper_window.setCheckable(False)
-        window_menu.addAction(self.open_stepper_window)
 
         self.open_deep_window = QAction("DL window", self)
         self.open_deep_window.setToolTip("Open window for deep learning control.")
@@ -1125,7 +1133,6 @@ class MainWindow(QMainWindow):
         self.c_p['video_format'] = video_format
 
     def open_motor_control_window(self):
-        #TODO all these opening methods are really basically the same, factor them out into a single one
         self.MotorControlDock.show()
         if self.MotorControlDock.isFloating():
             self.MotorControlDock.setFloating(False)
@@ -1135,11 +1142,6 @@ class MainWindow(QMainWindow):
         self.LaserControllerDock.show()
         if self.LaserControllerDock.isFloating():
             self.LaserControllerDock.setFloating(False)
-
-    def open_stepper_objective(self):
-        #self.obective_controller = ObjectiveStepperController(self.c_p, self.ArduinoUnoSerial)
-        #self.obective_controller.show()
-        pass
 
     def openPullingProtocolWindow(self):
         self.pullingProtocolDock.show()
@@ -1202,7 +1204,7 @@ class MainWindow(QMainWindow):
 
     def toggle_tracking_view(self):
         self.c_p['draw_particles'] = not self.c_p['draw_particles']
-        self.c_p['draw_TnP_particles'] = not self.c_p['draw_TnP_particles'] # TODO check if this addition is sufficient to clearly mark the trapped and pipette particle.
+        self.c_p['draw_TnP_particles'] = not self.c_p['draw_TnP_particles']
 
     def toggle_draw_lasers(self):
         self.c_p['draw_lasers'] = not self.c_p['draw_lasers']
@@ -1220,13 +1222,14 @@ class MainWindow(QMainWindow):
         self.c_p['draw_force'] = not self.c_p['draw_force']
 
     def snapshot(self, filename_save=None):
-        # Captures a snapshot of what the camera is viewing and saves that
-        # in the fileformat specified by the image_format parameter.
-        if filename_save is None:
+        """
+        Captures a snapshot of what the camera is viewing and saves that
+        in the fileformat specified by the image_format parameter.
+        """
+        if filename_save is None or isinstance(filename_save, bool):
             filename_save = self.c_p['filename']
         idx = str(self.c_p['image_idx'])
-        filename = self.c_p['recording_path'] + '/'+filename_save+'image_' + idx +'.'+\
-            self.c_p['image_format']
+        filename = self.c_p['recording_path'] + '/'+filename_save+'image_' + idx +'.'+ self.c_p['image_format']
         if self.c_p['image_format'] == 'npy':
             np.save(filename[:-4], self.c_p['image'])
         else:
@@ -1240,45 +1243,16 @@ class MainWindow(QMainWindow):
         self.resize_image()
 
     def resize_image(self):
-        # New code for it
         current_size = self.camera_window_label.size()
         width = current_size.width()
         height = current_size.height()
         self.c_p['frame_size'] = width, height
 
-    def mouseMoveEvent(self, e):
-        self.c_p['mouse_params'][3] = e.pos().x()-self.camera_window_label.pos().x()
-        self.c_p['mouse_params'][4] = e.pos().y()-self.camera_window_label.pos().y()
-        self.c_p['click_tools'][self.c_p['mouse_params'][5]].mouseMove()
-
-    def mousePressEvent(self, e):
-        
-        self.c_p['mouse_params'][1] = e.pos().x()-self.camera_window_label.pos().x()
-        self.c_p['mouse_params'][2] = e.pos().y()-self.camera_window_label.pos().y()
-
-        if e.button() == Qt.MouseButton.LeftButton:
-            self.c_p['mouse_params'][0] = 1
-        if e.button() == Qt.MouseButton.RightButton:
-            self.c_p['mouse_params'][0] = 2
-        if e.button() == Qt.MouseButton.MiddleButton:
-            self.c_p['mouse_params'][0] = 3
-        self.c_p['click_tools'][self.c_p['mouse_params'][5]].mousePress()
-
-    def mouseReleaseEvent(self, e):
-
-        self.c_p['mouse_params'][3] = e.pos().x()-self.camera_window_label.pos().x()
-        self.c_p['mouse_params'][4] = e.pos().y()-self.camera_window_label.pos().y()
-        self.c_p['click_tools'][self.c_p['mouse_params'][5]].mouseRelease()
-        self.c_p['mouse_params'][0] = 0
-
-
-    def mouseDoubleClickEvent(self, e):
-        # Double click to move center?
+    def mouseDoubleClickEvent(self, e):        
         x = e.pos().x()-self.camera_window_label.pos().x()
         y = e.pos().y()-self.camera_window_label.pos().y()
         print(x*self.c_p['image_scale'] ,y*self.c_p['image_scale'] )
         self.c_p['click_tools'][self.c_p['mouse_params'][5]].mouseDoubleClick()
-
 
     def show_new_window(self, checked):
         if self.plot_windows is None:
@@ -1299,40 +1273,42 @@ class MainWindow(QMainWindow):
     def open_Force_PSD_window(self):
         if self.plot_windows is None:
             self.plot_windows = []
-        # TODO fix that A and B are mixed up here.
         self.plot_windows.append(PlotWindow(self.c_p, data=self.data_channels,
                                           x_keys=['PSD_A_F_X','PSD_B_F_X'], y_keys=['PSD_A_F_Y','PSD_B_F_Y'],
                                           aspect_locked=True, grid_on=True, title='Force PSDs'))
         self.plot_windows[-1].show()
 
     def open_Force_Distance_window_Y(self):
+        """
+        Opens a new plot window displaying the force-distance curve for the Y axis.
+        This method creates and shows a PlotWindow instance configured to plot 'F_total_Y' versus 'Position_Y'
+        using the provided data channels. The plot window is appended to the list of currently open plot windows.
+        """
         if self.plot_windows is None:
             self.plot_windows = []
-        # TODO fix that A and B are mixed up here.
         self.plot_windows.append(PlotWindow(self.c_p, data=self.data_channels,
                                           x_keys=['Position_Y'], y_keys=['F_total_Y'],
                                           aspect_locked=False, grid_on=True, title='Force-distance curve',
                                           default_plot_length=200_000))
         self.plot_windows[-1].show()
 
-
     def open_Force_Distance_window_X(self):
+        """
+        Opens a new plot window displaying the force-distance curve for the X direction.
+        This method creates and shows a PlotWindow instance that visualizes the relationship
+        between the 'Position_X' and 'F_total_X' data channels. The plot window is configured
+        with an unlocked aspect ratio, grid enabled, a specific title, and a default plot length.
+        The new window is appended to the list of currently open plot windows.
+        If the plot_windows attribute is None, it initializes it as an empty list before adding the new window.
+        """
+
         if self.plot_windows is None:
             self.plot_windows = []
-        # TODO fix that A and B are mixed up here.
         self.plot_windows.append(PlotWindow(self.c_p, data=self.data_channels,
                                           x_keys=['Position_X'], y_keys=['F_total_X'],
                                           aspect_locked=False, grid_on=True, title='Force-distance curve',
                                           default_plot_length=200_000))
         self.plot_windows[-1].show()
-
-    def OpenTemperatureWindow(self):
-        self.temp_control_window = TempereatureControllerWindow(self.c_p)
-        self.temp_control_window.show()
-        
-    def OpenPIStage(self):
-        self.PI_window = PIStageWidget(self.c_p)
-        self.PI_window.show()
 
     def openPumpConfigWidget(self):
         self.pump_config_window = ConfigurePumpWidget(self.c_p)
@@ -1354,20 +1330,14 @@ class MainWindow(QMainWindow):
         self.dep_learning_window = DeepLearningControlWidget(self.c_p)
         self.dep_learning_window.show()
 
-
-
     def closeEvent(self, event):
-        # TODO close also other widgets here
         if self.plot_windows is not None:
             for w in self.plot_windows:
                 w.close()
-        self.loop.close()
         self.__del__
-
 
     def __del__(self):
         self.c_p['program_running'] = False
-        # TODO organize this better
         if self.CameraThread is not None:
             self.CameraThread.join()
         if self.TemperatureThread is not None:
@@ -1385,11 +1355,10 @@ class MainWindow(QMainWindow):
         self.VideoWriterThread.join()
 
 def create_camera_toolbar_external(main_window):
-    # TODO do not have this as an external function, urk
+    
     main_window.camera_toolbar = QToolBar("Camera tools")
     main_window.addToolBar(main_window.camera_toolbar)
-
-    # main_window.add_camera_actions(main_window.camera_toolbar)
+    
     main_window.zoom_action = QAction("Zoom out", main_window)
     main_window.zoom_action.setToolTip("Resets the field of view of the camera.\n CTRL+O")
     main_window.zoom_action.setShortcut(QKeySequence(Qt.Modifier.CTRL | Qt.Key.Key_O))
@@ -1405,10 +1374,8 @@ def create_camera_toolbar_external(main_window):
 
     main_window.snapshot_action = QAction("Snapshot", main_window)
     main_window.snapshot_action.setToolTip("Take snapshot of camera view.\n CTRL+S")
-    #main_window.snapshot_action.setShortcut('Shift+S')
     main_window.snapshot_action.triggered.connect(main_window.snapshot)
-    main_window.snapshot_action.setCheckable(False)
-    #self.button.setShortcut(QKeySequence(Qt.Modifier.CTRL | Qt.Key.Key_D))
+    main_window.snapshot_action.setCheckable(False)    
     # Create a shortcut and connect it to a custom method
     main_window.snapshot_action.setShortcut(QKeySequence(Qt.Modifier.CTRL | Qt.Key.Key_S))
 
@@ -1457,7 +1424,6 @@ def create_camera_toolbar_external(main_window):
     main_window.camera_toolbar.addWidget(main_window.exposure_time_LineEdit)
     main_window.camera_toolbar.addAction(main_window.set_exp_tim)
 
-
     main_window.set_frame_rate_action = QAction("Set target fps", main_window)
     main_window.set_frame_rate_action.setToolTip("Sets frame rate to the value in the textboox,\n is an upper bound on the actual frame rate.")
     main_window.set_frame_rate_action.triggered.connect(main_window.set_frame_rate)
@@ -1468,17 +1434,14 @@ def create_camera_toolbar_external(main_window):
     main_window.camera_toolbar.addWidget(main_window.frame_rate_LineEdit)
     main_window.camera_toolbar.addAction(main_window.set_frame_rate_action)
 
-
     main_window.set_gain_action = QAction("Set gain", main_window)
     main_window.set_gain_action.setToolTip("Sets software gain to the value in the textboox")
     main_window.set_gain_action.triggered.connect(main_window.set_gain)
 
-    # TODO add offset and label to this        
     main_window.gain_LineEdit = QLineEdit()
     main_window.gain_LineEdit.setToolTip("Set software gain on displayed image.")
     main_window.gain_LineEdit.setValidator(QDoubleValidator(0.1,3,3))
     main_window.gain_LineEdit.setText(str(main_window.c_p['image_gain']))
-    #main_window.gain_LineEdit.textChanged.connect(main_window.set_gain)
     main_window.camera_toolbar.addWidget(main_window.gain_LineEdit)
     main_window.camera_toolbar.addAction(main_window.set_gain_action)
 

@@ -5,8 +5,6 @@ import serial
 from time import sleep, time
 from scipy.interpolate import griddata
 
-#import timeit
-
 def create_interpolator(x_grid, y_grid, z_values, method='linear'):
     """
     Creates an interpolator function for irregularly sampled 2D grid data.
@@ -74,7 +72,13 @@ def poly2d(coeffs, x, y):
 
 
 class PortentaCommsProcess(Process):
-
+    """
+    PortentaCommsProcess is a multiprocessing.Process subclass that manages serial communication
+    between a host computer and a Portenta device (e.g., for minitweezers control). It handles
+    sending data to the Portenta, reading incoming data, and placing received data into a queue
+    for use by the main process. The process maintains a persistent serial connection, attempts
+    reconnection on failure, and uses shared data structures for inter-process communication.
+    """
     def __init__(self, portenta_data, outdata, com_port, running):
         """
         This function should get the data it is to send to the minitweezers. As well as a boolean which
@@ -86,8 +90,6 @@ class PortentaCommsProcess(Process):
         """
 
         super().__init__()  # Initialize Process instead of Thread
-        #self.c_p = Manager().dict(c_p)  # Create a proxy object for the shared dictionary
-        #self.portenta_commands = portenta_commands # Uint8 array, shared with the main process
         self.outdata = outdata
         self.portenta_data = portenta_data
         self.com_port = com_port
@@ -95,18 +97,19 @@ class PortentaCommsProcess(Process):
         self.daemon  = True
 
     def send_data_to_portenta(self):
+        """
+        Sends a data package via USB to the arduino portenta on the system controller.
+        """
 
         if self.serial_channel is None:
             try:
                 self.serial_channel = serial.Serial(self.com_port, baudrate=5000000, timeout=.001, write_timeout=0.001)
-                #self.c_p['minitweezers_connected'] = True
                 print("Reconnected")
             except Exception as ex:
                 self.serial_channel = None
             return
 
         self.serial_channel.reset_output_buffer()
-
         self.outdata[0:2] = [123, 123]
         try:
             self.serial_channel.write(self.outdata)
@@ -115,12 +118,10 @@ class PortentaCommsProcess(Process):
         except serial.serialutil.SerialException as e:
             print(f"Serial exception: {e}")
             self.serial_channel = None
-            #self.c_p['minitweezers_connected'] = False
         
     def read_portenta(self):
         """
         Reads the data from the serial port and returns it as a numpy array.
-
         """
         chunk_length = 256 # Number of 16 bit numbers sent each time.
         if self.serial_channel is None:
@@ -133,7 +134,6 @@ class PortentaCommsProcess(Process):
         except serial.serialutil.SerialException as e:
             print(f"Serial exception: {e}")
             self.serial_channel = None
-            #self.c_p['minitweezers_connected'] = False
             return None
         if raw_data[0] != 123 or raw_data[1] != 123:
                 print('Wrong start bytes')
@@ -142,15 +142,10 @@ class PortentaCommsProcess(Process):
         # Insted of returning we put it in a buffer
         self.portenta_data.put_nowait(np.frombuffer(raw_data, dtype=np.uint16))
 
-        # TODO make this thread actually put the data into the data channels too. Would most likely solve
-        # any remaining issues with the program overloading during saving.
-
-
     def run(self):
         # Open the serial port in the child process
         try:
             self.serial_channel = serial.Serial(self.com_port, baudrate=5000000, timeout=.001, write_timeout=0.001)
-            #self.c_p['minitweezers_connected'] = True
         except Exception as ex:
             print("No comm port!")
             self.serial_channel = None
@@ -184,7 +179,6 @@ class PortentaComms(Thread):
         self.reset_motor_pos = True
         nbr_multisamples = 1
 
-        # TODO make it so that we set the target position to current position when starting the connections.
         self.channel_array = self.c_p['single_sample_channels'].copy()
         for _ in range(nbr_multisamples):
             self.channel_array.extend(self.c_p['multi_sample_channels'])
@@ -198,8 +192,6 @@ class PortentaComms(Thread):
         self.BFX_interpolator = None
         self.BFY_interpolator = None
 
-    
-
     def prepare_portenta_commands(self):
         """
         Prepares data for sending to the portenta.
@@ -210,8 +202,8 @@ class PortentaComms(Thread):
 
         # Send the target position and speed
         for i in range(3):
-            self.outdata[2 + i * 2] = np.uint16(self.c_p['minitweezers_target_pos'][i] + 32768)>> 8 #max(self.c_p['minitweezers_target_pos'][i] + 32768)>> 8,0)
-            self.outdata[3 + i * 2] = np.uint16(self.c_p['minitweezers_target_pos'][i] + 32768)& 0xFF #max(self.c_p['minitweezers_target_pos'][i] + 32768)& 0xFF,0)
+            self.outdata[2 + i * 2] = np.uint16(self.c_p['minitweezers_target_pos'][i] + 32768)>> 8
+            self.outdata[3 + i * 2] = np.uint16(self.c_p['minitweezers_target_pos'][i] + 32768)& 0xFF
             self.outdata[8 + i * 2] = (self.c_p[f'motor_{["x", "y", "z"][i]}_target_speed'] + 32768) >> 8
             self.outdata[9 + i * 2] = (self.c_p[f'motor_{["x", "y", "z"][i]}_target_speed'] + 32768) & 0xFF
 
@@ -221,12 +213,10 @@ class PortentaComms(Thread):
             self.outdata[15 + i * 2] = self.c_p['piezo_A'][i] & 0xFF
             self.outdata[18 + i * 2] = self.c_p['piezo_B'][i] >> 8
             self.outdata[19 + i * 2] = self.c_p['piezo_B'][i] & 0xFF
-        #print(self.outdata[14:21]) Correct
+
         self.outdata[22] = self.c_p['motor_travel_speed'][0] >> 8
         self.outdata[23] = self.c_p['motor_travel_speed'][0] & 0xFF
         self.outdata[24] = self.c_p['portenta_command_1']
-
-        # TODO handle this more cleanly.
         if self.c_p['portenta_command_1'] in [1,2,4,5]:
             # End Set zero values
             self.outdata[26] = self.c_p['PSD_means'][0] >> 8
@@ -284,26 +274,23 @@ class PortentaComms(Thread):
 
     def calc_quote_fast(self, quote, channel1, channel2, chunk_length, scale=1):
         D1 = self.data_channels[channel1].get_data(chunk_length)
-        # D2 = np.copy(self.data_channels[channel2].get_data(chunk_length).astype(float))
         D2 = self.data_channels[channel2].get_data(chunk_length).astype(float)
         D2[D2==0] = np.inf
         self.data_channels[quote].put_data(scale*D1/D2)
 
-    def calculate_quotes_fast(self, chunk_length):
-        # TODO It would be nice to make this faster than it is now. It is a bit slow even if it is vectorized.
-        
+    def calculate_quotes_fast(self, chunk_length):        
+        """
+        Converts from raw readings (in bits) to positions and quote Photodiode reading / sum reading
+        """
         # Calibration to get true positions, too slow to run in real time.
         if self.c_p['calibration_performed']:
             self.create_interpolators()
             self.c_p['calibration_performed'] = False
 
-        #if self.APX_interpolator is not None:
-        #    self.interpolate_position(chunk_length)
-        #else:            
         self.calc_quote_fast('Position_A_X','PSD_A_P_X','PSD_A_P_sum', chunk_length, self.c_p['PSD_to_pos'][0])
-        self.calc_quote_fast('Position_A_Y','PSD_A_P_Y','PSD_A_P_sum', chunk_length, self.c_p['PSD_to_pos'][0])
-        self.calc_quote_fast('Position_B_X','PSD_B_P_X','PSD_B_P_sum', chunk_length, self.c_p['PSD_to_pos'][1])
-        self.calc_quote_fast('Position_B_Y','PSD_B_P_Y','PSD_B_P_sum', chunk_length, self.c_p['PSD_to_pos'][1])
+        self.calc_quote_fast('Position_A_Y','PSD_A_P_Y','PSD_A_P_sum', chunk_length, self.c_p['PSD_to_pos'][1]) # Changed calibration to one per axis
+        self.calc_quote_fast('Position_B_X','PSD_B_P_X','PSD_B_P_sum', chunk_length, self.c_p['PSD_to_pos'][2])
+        self.calc_quote_fast('Position_B_Y','PSD_B_P_Y','PSD_B_P_sum', chunk_length, self.c_p['PSD_to_pos'][3])
         self.calc_quote_fast('Photodiode/PSD SUM A','Photodiode_A','PSD_A_F_sum', chunk_length)
         self.calc_quote_fast('Photodiode/PSD SUM B','Photodiode_B','PSD_B_F_sum', chunk_length)
 
@@ -311,6 +298,9 @@ class PortentaComms(Thread):
         self.data_channels['Position_Y'].put_data((self.data_channels['Position_A_Y'].get_data(chunk_length) + self.data_channels['Position_B_Y'].get_data(chunk_length))/2)
         
     def calc_true_powers(self, chunk_length):
+        """
+        Calculates the power (in mW) of the lasers
+        """
         # Compensate for the reflections of the lasers to get the true PSD sum readings ( What we would get if there were no reflections)
         self.data_channels['PSD_A_F_sum_compensated'].put_data((self.data_channels['PSD_A_F_sum'].get_data(chunk_length) - self.data_channels['PSD_B_F_sum'].get_data(chunk_length)*self.c_p['reflection_B']) * self.c_p['reflection_fac'])
         self.data_channels['PSD_B_F_sum_compensated'].put_data((self.data_channels['PSD_B_F_sum'].get_data(chunk_length) - self.data_channels['PSD_A_F_sum'].get_data(chunk_length)*self.c_p['reflection_A']) * self.c_p['reflection_fac'])
@@ -320,14 +310,9 @@ class PortentaComms(Thread):
         self.data_channels['Laser_B_power'].put_data(self.data_channels['PSD_B_F_sum_compensated'].get_data(chunk_length)*self.c_p['sum2power_B'])
 
     def calc_forces(self, chunk_length):
-        # Calculate force and put in data channels
-        # TODO may need to do something to make this a bit faster than it is now.
-        # Potentially only make the calculations on demand...
-
-        # Calculate the force from the PSD readings
-        #if self.APX_interpolator is not None: # THis is an odd thing to do, maybe with the polynomial interpolation it is better.
-        #    self.calculate_compensated_force(chunk_length)
-        #else:
+        """
+        Calculate force and put in data channels
+        """
         self.data_channels['F_A_X'].put_data(self.data_channels['PSD_A_F_X'].get_data(chunk_length)*self.c_p['PSD_to_force'][0])
         self.data_channels['F_A_Y'].put_data(self.data_channels['PSD_A_F_Y'].get_data(chunk_length)*self.c_p['PSD_to_force'][1])
         self.data_channels['F_B_X'].put_data(self.data_channels['PSD_B_F_X'].get_data(chunk_length)*self.c_p['PSD_to_force'][2])
@@ -341,8 +326,10 @@ class PortentaComms(Thread):
         self.data_channels['F_total_Z'].put_data(self.data_channels['F_A_Z'].get_data(chunk_length) + self.data_channels['F_B_Z'].get_data(chunk_length) + self.c_p['Photodiode_sum_to_force'][2])
 
     def calc_speeds(self, chunk_length, diff = 5):
-        # TODO change to microns instead of ticks
-        if self.data_channels['Motor_x_pos'].max_retrivable<chunk_length+diff:
+        """
+        Calculates the speeds of the motors
+        """
+        if self.data_channels['Motor_x_pos'].max_retrivable < chunk_length+diff:
             self.data_channels['Motor_x_speed'].put_data(np.zeros(self.data_channels['Motor_x_pos'].max_retrivable))
             self.data_channels['Motor_y_speed'].put_data(np.zeros(self.data_channels['Motor_y_pos'].max_retrivable))
             self.data_channels['Motor_z_speed'].put_data(np.zeros(self.data_channels['Motor_z_pos'].max_retrivable))
@@ -355,15 +342,13 @@ class PortentaComms(Thread):
         dy = -(y_data[diff:] - y_data[:-diff])
         dz = -(z_data[diff:] - z_data[:-diff])
         dt = -(time_data[diff:] - time_data[:-diff])*1e-6 # Conveting to seconds here
-        self.data_channels['Motor_x_speed'].put_data(self.c_p['microns_per_tick']*dx/dt)
-        self.data_channels['Motor_y_speed'].put_data(self.c_p['microns_per_tick']*dy/dt)
-        self.data_channels['Motor_z_speed'].put_data(self.c_p['microns_per_tick']*dz/dt)
-
+        self.data_channels['Motor_x_speed'].put_data(self.c_p['microns_per_tick']*dx*self.c_p['microns_per_tick']/dt)
+        self.data_channels['Motor_y_speed'].put_data(self.c_p['microns_per_tick']*dy*self.c_p['microns_per_tick']/dt)
+        self.data_channels['Motor_z_speed'].put_data(self.c_p['microns_per_tick']*dz*self.c_p['microns_per_tick']/dt)
 
     def read_data(self):
         """
-        Replace this to read from the CommsProcess instead of the serial channel.
-
+        Reads the data in the buffer
         """
         if self.portenta_data.empty():
             return None
@@ -383,7 +368,6 @@ class PortentaComms(Thread):
 
     def read_data_to_channels(self, chunk_length=256):
         # Chunk length is the number of 16 bit numbers sent each time, i.e half the number of bytes sent.
-        # TODO there are two different chunk_lenghts in this script in different places, they mean slightly different things, fix this.
         numbers = self.read_data()
         if numbers is None:
             sleep(0.001)
@@ -419,7 +403,6 @@ class PortentaComms(Thread):
                 data -= 32768
             self.data_channels[channel].put_data(data)
 
-        # Add the time channel... Maybe have this as a separate function?
         data_length = len(indices)
         low = self.data_channels['Time_micros_low'].get_data(data_length).astype(np.uint32)
         high = self.data_channels['Time_micros_high'].get_data(data_length).astype(np.uint32)
@@ -435,7 +418,7 @@ class PortentaComms(Thread):
         self.calculate_quotes_fast(data_length) # This works but is a bit slow...
         self.calc_true_powers(data_length)
         self.calc_forces(data_length)
-        self.calc_speeds(data_length)
+        
         self.calc_speeds(data_length_single, diff=5)
         self.update_piezodac_data()
 
@@ -540,7 +523,6 @@ class PortentaComms(Thread):
     
     def create_interpolators(self):
 
-        # TODO should compensate for the power of the lasers in the position calculation. Maybe also in the force... Could also check if the power is reasonable when doing the calculation...
         # Create interpolators for the calibration points
         self.APX_interpolator = self.create_fast_interpolator(self.c_p['calibration_points'][:,:,2],self.c_p['calibration_points'][:,:,3], self.c_p['calibration_points'][:,:,0])
         
@@ -565,7 +547,6 @@ class PortentaComms(Thread):
 
     def interpolate_position(self, chunck_length):
         # Interpolate the position of the particles from the calibration points
-        # TODO offset zero position? I.e zero at center maybe?, can do by subtracting the interpolator of (0,0)
         self.data_channels['Position_A_X'].put_data(self.APX_interpolator(self.data_channels['PSD_A_P_X'].get_data(chunck_length), self.data_channels['PSD_A_P_Y'].get_data(chunck_length))-self.APX_0)
         self.data_channels['Position_A_Y'].put_data(self.APY_interpolator(self.data_channels['PSD_A_P_X'].get_data(chunck_length), self.data_channels['PSD_A_P_Y'].get_data(chunck_length))-self.APY_0)
         self.data_channels['Position_B_X'].put_data(self.BPX_interpolator(self.data_channels['PSD_B_P_X'].get_data(chunck_length), self.data_channels['PSD_B_P_Y'].get_data(chunck_length))-self.BPX_0)
@@ -594,16 +575,11 @@ class PortentaComms(Thread):
 
     def run(self):
         print("Starting portenta comms process")
-
         self.commsProcess = PortentaCommsProcess(self.portenta_data, self.outdata, self.c_p['COM_port'], self.running_process)
         self.commsProcess.start()
         print("Portenta comms process started")
-
-        # TODO make this update properly depending on whether the minitweezers is connected or not.
         self.c_p['minitweezers_connected'] = True
         while self.c_p['program_running']:
-            #if self.c_p['move_to_location']:
-                # print("Moving To Location")
             self.move_to_location_check()
             self.prepare_portenta_commands()
             self.read_data_to_channels()
@@ -612,50 +588,3 @@ class PortentaComms(Thread):
         self.running_process = 0
         sleep(0.5)
         self.commsProcess.join()
-
-
-        """
-        # Adjust speed depending on how far we are going
-        if dist_x**2 >200_000:
-            self.c_p['motor_travel_speed'][0] = 25000
-
-        elif dist_x**2 >10_000:
-            self.c_p['motor_travel_speed'][0] = 2000 # Tuned the values ehre a bit
-        elif dist_x**2 > 1000:
-            self.c_p['motor_travel_speed'][0] = 1000
-        else:
-            self.c_p['motor_travel_speed'][0] = 300 # Changed from 1500
-
-        if dist_y**2 >200_000:
-            self.c_p['motor_travel_speed'][1] = 25000
-        elif dist_y**2 >10_000:
-            self.c_p['motor_travel_speed'][1] = 2000
-        elif dist_y**2 > 1000:
-            self.c_p['motor_travel_speed'][1] = 1000
-        else:
-            self.c_p['motor_travel_speed'][1] = 300 #changed from 1500
-
-        # Changed the signs of this function
-        if dist_x**2>10:
-            self.c_p['motor_x_target_speed'] = -self.c_p['motor_travel_speed'][0] if dist_x > 0 else self.c_p['motor_travel_speed'][0]
-        else:
-            self.c_p['motor_x_target_speed'] = 0
-
-        if dist_y**2>10:
-            self.c_p['motor_y_target_speed'] = self.c_p['motor_travel_speed'][1] if dist_y > 0 else -self.c_p['motor_travel_speed'][1]
-        else:
-            self.c_p['motor_y_target_speed'] = 0
-        
-        # Z movement is dangerous, test carfully
-        if dist_z**2>5:
-            self.c_p['motor_z_target_speed'] = 350 if dist_z > 0 else -350 # Cannot allow high speeds here
-        else:
-            self.c_p['motor_z_target_speed'] = 0
-        
-        if dist_x**2+dist_y**2<20 and dist_z**2<5:
-            self.c_p['motor_x_target_speed'] = 0
-            self.c_p['motor_y_target_speed'] = 0
-            self.c_p['motor_z_target_speed'] = 0
-            self.c_p['move_to_location'] = False
-        """
-            #

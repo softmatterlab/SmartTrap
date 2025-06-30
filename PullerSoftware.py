@@ -27,7 +27,6 @@ def connect_to_psu(com_port, baud_rate):
         print(f"Response from PSU: {response}")
 
         # Close the serial connection
-        # ser.close()
         return ser
     except Exception as e:
         print(f"Error: {e}")
@@ -96,8 +95,8 @@ class PSUControlPanel(QWidget):
             [1.0, 0.5],
         ]
         self.ramp_duration = 8.5
-        self.max_time = 12
-        self.max_current = 2.84 # 2.9 used to be default but sometimes gave closed pipettes
+        self.max_time = 10
+        self.max_current = 3.25 # Seems to depend on the cables used, for the thicker ones 2.81, for the thinner 2.86 (ca)
         self.ramp_frequency = 20
         self.voltage = 5
         self.initUI()
@@ -109,9 +108,7 @@ class PSUControlPanel(QWidget):
 
     def initUI(self):
         # Layout
-        #layout = QVBoxLayout()
         layout = QGridLayout()
-
 
           # Voltage control
         self.voltage_input = QDoubleSpinBox(self)
@@ -123,7 +120,6 @@ class PSUControlPanel(QWidget):
         layout.addWidget(QLabel('Voltage (V):'), 0, 0)
         layout.addWidget(self.voltage_input, 0, 1)
         layout.addWidget(self.set_voltage_button, 0, 2)
-
 
         # Current control
         self.current_input = QDoubleSpinBox(self)
@@ -177,7 +173,6 @@ class PSUControlPanel(QWidget):
         self.set_ramp_duration_button.clicked.connect(self.set_ramp_duration)
         layout.addWidget(self.set_ramp_duration_button, 4, 2)        
 
-
         layout.addWidget(QLabel('Max time (S):'), 5, 0)
         self.max_time_input = QDoubleSpinBox(self)
         self.max_time_input.setRange(0, 100)
@@ -187,7 +182,6 @@ class PSUControlPanel(QWidget):
         self.set_max_time_button = QPushButton('Set Max Time', self)
         self.set_max_time_button.clicked.connect(self.set_max_time)
         layout.addWidget(self.set_max_time_button, 5, 2)
-
 
         self.max_current_input = QDoubleSpinBox(self)
         self.max_current_input.setRange(0, 3.5)
@@ -252,6 +246,8 @@ class PSUControlPanel(QWidget):
     def start_protocol(self):
         if not self.output_on:
             self.toggle_output()
+        output_on(self.PSU )
+        self.output_on = True
         self.protocol_thread = CurrentProtocolThread(self.PSU, self.protocol)
         self.protocol_thread.update_signal.connect(self.handle_protocol_update)
         self.protocol_thread.start()
@@ -259,6 +255,7 @@ class PSUControlPanel(QWidget):
     def stop_protocol(self):
         if self.protocol_thread:
             output_off(self.PSU)
+            self.output_on = False
             if self.output_on:
                 self.toggle_output()
 

@@ -8,9 +8,8 @@ sys.path.append("C:/Users/Martin/Downloads/ESI_V3_08_02/ESI_V3_08_02/ESI_V3_08_0
 Note there is a line which needs to be changed in the Elveflow64.py file to get the correct import:
 Replaced: ElveflowDLL=CDLL('D:/dev/SDK/DLL64/DLL64/Elveflow64.dll')# change this path 
 With: ElveflowDLL=CDLL("C:/Users/Martin/Downloads/ESI_V3_08_02/ESI_V3_08_02/ESI_V3_08_02/SDK_V3_08_02/DLL/DLL64/Elveflow64.dll")# change this path 
-
+Similar corrections may need to be made when installing on a different system.
 """
-
 
 from array import array
 from ctypes import *
@@ -25,6 +24,7 @@ from PyQt6.QtWidgets import (
     QLineEdit, QSpinBox, QDoubleSpinBox, QSlider, QToolBar,QHBoxLayout,
     QPushButton, QVBoxLayout, QWidget, QLabel
 )
+from PyQt6.QtGui import QPalette, QColor
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 
@@ -82,7 +82,6 @@ class SyringePumpPSU():
             print(f"Response from PSU: {response}")
             self.connected = True
             # Close the serial connection
-            # ser.close()
         except Exception as e:
             print(f"Error: {e}")
 
@@ -135,7 +134,6 @@ class MUXWireValveController():
 
     def __init__(self):
         self.valve_connected = False
-        # self.valves = valves
         self.Instr_ID=c_int32()
         self.states = np.zeros(16, dtype=int)
 
@@ -282,6 +280,12 @@ class ConfigurePumpWidget(QWidget):
     def __init__(self, c_p):
         super().__init__()
         self.c_p = c_p
+        self.setAutoFillBackground(True)
+        pal = self.palette()
+        # QPalette.ColorRole.Window is the “background” role in Qt6
+        pal.setColor(QPalette.ColorRole.Window, QColor(225, 225, 250))#("#f0e68c"))
+        self.setPalette(pal)
+
         self.initUI()
 
     def initUI(self):
@@ -390,6 +394,13 @@ class MicrofluidicsControllerWidget(QWidget):
         self.c_p = c_p
         self.controller = controller
 
+        self.setAutoFillBackground(True)
+        pal = self.palette()
+        # QPalette.ColorRole.Window is the “background” role in Qt6
+        pal.setColor(QPalette.ColorRole.Window, QColor(225, 225, 250))#("#f0e68c"))
+        self.setPalette(pal)
+
+
         self.initUI()
         self.pump_PSU = SyringePumpPSU(self.c_p['pump_PSU_adress'])
         self.pumpMonitorThread = MicrofluidicsMonitorThread(self.controller, self.c_p, self.pump_PSU)
@@ -464,7 +475,7 @@ class MicrofluidicsControllerWidget(QWidget):
 
             # Create a spinbox for setting the pressure
             self.pressure_spinboxes.append(QDoubleSpinBox())
-            self.pressure_spinboxes[-1].setRange(0, 2000) # TODO fix so that this actually corresponds to the pressure range of the pump
+            self.pressure_spinboxes[-1].setRange(0, 2000)
             self.pressure_spinboxes[-1].setSingleStep(0.1)
             self.pressure_spinboxes[-1].setSuffix(" mbar")
             self.pressure_spinboxes[-1].valueChanged.connect(lambda value, channel=channel: self.setPressure(channel, value))
@@ -500,7 +511,6 @@ class MicrofluidicsControllerWidget(QWidget):
             button.setChecked(self.c_p['valves_open'][index])
 
     def closeEvent(self, event):
-        #self.pumpMonitorThread.
         event.accept()
         self.pump_PSU.disconnect_from_psu()
             

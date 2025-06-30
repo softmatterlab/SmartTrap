@@ -3,7 +3,6 @@ from PyQt6.QtWidgets import (
  QCheckBox, QVBoxLayout, QWidget, QLabel, QTableWidget, QTableWidgetItem
 )
 
-# from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QAction, QFont
 from PyQt6.QtCore import QTimer
 
@@ -14,7 +13,6 @@ class CurrentValueWindow(QWidget):
     Window for displaying the current values of the data channels.
     """
     def __init__(self, c_p, data_channels):
-        # TODO add checkbox for saving data(continously) and a button to save data snapshot
         super().__init__()
         self.c_p = c_p
         self.data_channels = data_channels
@@ -77,21 +75,7 @@ class CurrentValueWindow(QWidget):
         Toggle the saving_toggled property of the DataChannel when the checkbox is toggled.
         """
         self.data_channels[channel].saving_toggled = bool(state)
-    '''
-    def set_data(self):
-        
-        for idx, channel in enumerate(self.data_channels):
-            data = self.data_channels[channel].get_data(self.c_p['averaging_interval'])
-            self.table.setItem(idx,1, QTableWidgetItem(f"{self.data_channels[channel].get_data(1)}"))
-            if data is not None and len(data) > 1:
-                self.table.setItem(idx,2, QTableWidgetItem(f"{round(np.mean(data),6)}"))
-            else:
-                self.table.setItem(idx,2, QTableWidgetItem(f"{data}"))
-            if data is not None and len(data) > 1:
-                self.table.setItem(idx,3, QTableWidgetItem(f"{round(np.std(data),6)}"))
-            else:
-                self.table.setItem(idx,3, QTableWidgetItem(f"{data}"))
-    '''
+    
     def set_data(self):
         
         for idx, channel in enumerate(self.data_channels):

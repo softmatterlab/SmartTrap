@@ -1,7 +1,5 @@
 import numpy as np
 import os
-import cv2
-import time
 from thorlabs_tsi_sdk.tl_camera import TLCameraSDK, OPERATION_MODE
 from CameraControlsNew import CameraInterface
 import thorlabs_tsi_sdk.tl_camera
@@ -83,10 +81,9 @@ class ThorlabsScientificCamera(CameraInterface):
             self.is_grabbing = True
 
         try:
-            frame = self.camera.get_pending_frame_or_null()  # Get the latest frame
+            frame = self.camera.get_pending_frame_or_null() # Get the latest frame
             if frame is not None:
-                #image = frame.image_buffer  # Retrieve the image data
-                return np.copy(frame.image_buffer).astype(np.uint8) #np.copy(image)  # Return the captured image as a NumPy array
+                return np.copy(frame.image_buffer).astype(np.uint8) # Return the captured image as a NumPy array
             else:
                 print("No frame available!")
                 return None
@@ -119,7 +116,7 @@ class ThorlabsScientificCamera(CameraInterface):
             self.stop_grabbing()
             self.camera.disarm()
             ROI = thorlabs_tsi_sdk.tl_camera.ROI(AOI[0],AOI[2],AOI[1],AOI[3])
-            self.camera.roi = ROI # TODO test if this works and if the resulting ROI i the correct size
+            self.camera.roi = ROI
             self.camera.arm(2)
             print(f"AOI set to {AOI}")
             AOI[0] = self.camera.roi.upper_left_x_pixels

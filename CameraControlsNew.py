@@ -24,7 +24,23 @@ from PyQt6.QtGui import  QColor,QPen
 
 
 class CameraClicks(MouseInterface):
-    # TODO add measurements here
+    """
+    CameraClicks is a mouse interaction handler for camera controls, enabling users to interactively select and zoom into regions of interest (AOI) on an image using mouse events.
+    This class provides methods to handle mouse press, release, move, and double-click events, and draws selection rectangles on the image. It updates camera parameters based on user input, such as defining a new AOI when the user drags a rectangle with the mouse. The tool is intended for use in graphical applications where camera view manipulation is required.
+    Attributes:
+        c_p (dict): A dictionary containing camera parameters and mouse interaction state.
+        x_0 (int): Initial x-coordinate for mouse interaction.
+        y_0 (int): Initial y-coordinate for mouse interaction.
+        red_pen (QPen): Pen used to draw the selection rectangle.
+    Methods:
+        draw(qp): Draws the selection rectangle if the appropriate tool is active.
+        mousePress(): Handles mouse press events for different tools.
+        mouseRelease(): Handles mouse release events, updating the AOI if a valid selection is made.
+        mouseDoubleClick(): Handles mouse double-click events (currently not implemented).
+        mouseMove(): Handles mouse move events for dragging actions.
+        getToolName(): Returns the name of the tool.
+        getToolTip(): Returns a tooltip describing the tool's functionality.        
+    """
     def __init__(self, c_p):
         self.c_p = c_p
         self.x_0 = 0
@@ -35,8 +51,6 @@ class CameraClicks(MouseInterface):
 
     def draw(self, qp):
         if self.c_p['mouse_params'][0] == 1:
-            # TODO use mouse params [0] to index different tools.
-            # self.qp.setBrush(QColor(255, 255, 0, 20))#self.br)
             qp.setPen(self.red_pen)                
             x1,y1,x2,y2 = self.c_p['mouse_params'][1:5]
             qp.drawRect(x1,y1,x2-x1,y2-y1)
@@ -78,6 +92,7 @@ class CameraClicks(MouseInterface):
         self.c_p['new_settings_camera'] = [True, 'AOI']
         
     def mouseDoubleClick(self):
+        # Not used by camera tool
         pass
     
     def mouseMove(self):
@@ -148,12 +163,6 @@ class CameraThread(Thread):
         self.camera.connect_camera()
         c_p['camera_width'], c_p['camera_height'] = camera.get_sensor_size()
         self.c_p = c_p
-
-        # TODO remove temporary solution
-        
-        #self.camera.cam.AcquisitionFrameRateEnable = False
-        # self.camera.cam.AcquisitionFrameRate = 11 
-        #print("Framrate ", self.camera.cam.ResultingFrameRate())
         
         # Zoom out
         self.c_p['AOI'] = [0, self.c_p['camera_width'], 0,
