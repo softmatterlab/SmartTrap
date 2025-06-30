@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Oct  7 13:48:24 2022
-
-@author: Martin Selin
-"""
-
 import numpy as np
 from queue import Queue
 
@@ -178,7 +171,6 @@ def default_c_p():
             'prescale_factor': 2, # Factor with which the image is to be prescaled before doing the tracking/traing
             'alpha': 1,
             'cutoff': 0.9995,
-            # 'train_new_model': False,
             'model':None,
             'z-model':None,
             'device': None, # Pytorch device on which the model runs
@@ -204,7 +196,7 @@ def default_c_p():
             'pipette_location': [0,0,0,0], # Location of the pipette in the image,x,y position of tip as well as width and height of pipette(in this order).
             'pipette_tip_location': [0,0], # Location of the pipette tip in the image
 
-            'default_unet_path': "NeuralNetworks\TorchBigmodelJune_1", # Not used anymore, remove.
+            'default_unet_path': "NeuralNetworks\TorchBigmodelJune_1",
             'yolo_path': "NeuralNetworks\YOLOV5Weights.pt",
             'default_z_model_path': "NeuralNetworks\Z_model_large_range.pth",
 
@@ -395,9 +387,6 @@ def default_c_p():
 
 
 from dataclasses import dataclass
-# TODO have the max_len be a tunable parameter for configuration.
-# TODO implement a custom return funciton for the "derived" channels, i.e the ones which are calculated from other channels.
-# TODO have sampling rate as a parameter for the data channels.
 @dataclass
 class DataChannel:
     name: str
@@ -533,7 +522,6 @@ def get_data_dicitonary_new():
     return data_dict
 
 def get_unit_dictionary(self):
-    # Currently not in use
     units = {
         'Time':'(s)',
         'X-force':'(pN)',
