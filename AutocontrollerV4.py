@@ -311,15 +311,6 @@ def generate_move_map(size, width, height, positions, radii,rect=None, start_pos
         area[x_min:x_max, y_min:y_max] = 0
 
     if rect is not None:
-        """
-        x = rect[0]/width * size
-        y = rect[1]/height * y_size
-        x_min = max(int(x), 0)
-        x_max = min(int(rect[2]/width * size), size)
-        y_min = max(int(y), 0)
-        y_max = min(int(rect[3]/height * y_size), y_size)
-        """
-        # ordered as x0,y0,x1,y1
         area[rect[0]:rect[2], rect[1]:rect[3]] = 0
     return area
 
@@ -716,7 +707,6 @@ class autoControllerThread(Thread):
     """
     New and updated version of the autoControllerThraed. The most important change is that now the deep-learning thread is implemented
     in the autoControllerThread. This is done to simplify synchronization between the different threads.
-
     """
     def __init__(self, c_p, data_channels, main_window=None):
         super().__init__()
@@ -936,14 +926,7 @@ class autoControllerThread(Thread):
         for idx,pos in enumerate(self.c_p['predicted_particle_positions']):
             x, y = int(pos[0]), int(pos[1])
             # Check if the crop is within the image
-             
-            """
-            # Old way, struggles with large particles
-            if self.c_p['predicted_particle_radii'][idx] > 1.5/self.c_p['microns_per_pix']:
-                width = self.c_p['crop_width']
-            else:
-                width = int(self.c_p['crop_width']-16)
-            """
+  
             # New way, resizes each to the same size
             width = int(self.c_p['crop_width'])
             x0 = x - width
@@ -1741,13 +1724,10 @@ class autoControllerThread(Thread):
             return True
         return False
 
-    def z_focus(self, limit=0.3):  # Changed limit here, decreased to 0.3
+    def z_focus(self, limit=0.3): 
         """
-        Operational idea:
-            The system compares the position of the particle in the trap
-            to the particle in the pipette. For this we need to know the approximate laser position
-            as well as the position of the pipette. The laser position should be ...
-        
+        The system compares the position of the particle in the trap with that of 
+        the particle in the pipette, moving the z-position of the stage until they match.
         return:
             True if the system has reached the correct z-position
             False if the system needs to move further or no z-position was found.
@@ -1778,8 +1758,6 @@ class autoControllerThread(Thread):
         if dz < 0:
             self.c_p['minitweezers_target_pos'][2] = int(self.data_channels['Motor_z_pos'].get_data(1)[0] - 4)
         self.z_move_counter = 0
-        # Here we risk moving along other axis by accident if we don't set the target position to current position.
-        # Does enforce that we only move along one axis(z)
         self.c_p['minitweezers_target_pos'][0] = int(self.data_channels['Motor_x_pos'].get_data(1)[0])
         self.c_p['minitweezers_target_pos'][1] = int(self.data_channels['Motor_y_pos'].get_data(1)[0])
 
@@ -1898,7 +1876,8 @@ class autoControllerThread(Thread):
 
     def check_particles_can_touch_with_piezo(self):
         """
-        Checks if the particles are close enough to each other to touch when moved with only the piezos(laser).
+        Checks if the particles are close enough to each other to touch 
+        when moved with only the piezos(laser).
         """
         if len(self.c_p['predicted_particle_positions']) < 2:
             return False
@@ -2215,7 +2194,6 @@ class autoControllerThread(Thread):
         Checks if a molecule used for stretching has been broken.
         Does so by checking if the force is small at a large particle-particle separation.
         Returns True if the molecule is broken, otherwise false.
-        (A small force at a small separation does not imply a broken molecule, as this is expected also in the prescence of a molecule)
         """
         force = np.abs(np.mean(self.data_channels['F_total_Y'].get_data(30)))
         dy = self.c_p['pipette_particle_location'][1] - self.c_p['Trapped_particle_position'][1] 
@@ -2396,16 +2374,6 @@ class autoControllerThread(Thread):
         distance_y = self.c_p['pipette_tip_location'][1] - self.c_p['Trapped_particle_position'][1]
         print("Piezos moving to put particle close to pipette")
         self.put_particle_in_pipette()
-        """
-        if distance_x**2 + distance_y**2 > (5/self.c_p['microns_per_pix'])**2:
-            self.c_p['move_particle2pipette'] = True
-            self.c_p['move2area_above_pipette'] = False
-            return "Moving to pipette location"
-
-        if self.c_p['move_particle2pipette']:
-            self.c_p['move2area_above_pipette'] = False
-            return "Moving to pipette location"
-        """
         
     def restart_experiment(self):
         """
@@ -2444,8 +2412,7 @@ class autoControllerThread(Thread):
         """
         A generic method for getting two particles, one in trap and one in pipette.
         When this returns True there are two particles, one in the trap and the other 
-         in the pipette aligned and ready for experiments.
-        
+        in the pipette aligned and ready for experiments.
         """
 
         if self.c_p['multiple_particles_trapped']:
@@ -2693,10 +2660,10 @@ class autoControllerThread(Thread):
     
     def auto_RBC_experiment(self):
         """
-        Autonous red blood cell experiments
-        Basically looks at the image, if there are no particles there(RBC) then it will flow some particles and try again.
+        Autonomous red blood cell experiments
+        By looking at the image, if there are no particles (RBC) then it will flow some particles and try again.
         Once there is a particle in view it will trap that and start the experiment changing the current according to the RBC_laser_currents
-        protocol. That part of the code is handled by the laser controller.
+        protocol.
         After the protocol is finished it will restart the experiment and try again.        
         """
         if not self.particle_trapped:
@@ -2824,7 +2791,6 @@ class autoControllerThread(Thread):
                  - Moving to start location
                  - Performing stokes test
                  - Restarting
-
         """
         
         # Start by trapping a particle
@@ -2974,7 +2940,7 @@ class autoControllerThread(Thread):
         # Add data to data channels
         self.add_prediction_to_data()
         self.data_channels['particle_trapped'].put_data(self.c_p['particle_trapped'])
-        self.check_multiple_trapped() # Seems to work, at least for bigger particles.
+        self.check_multiple_trapped() 
 
     def run(self):
         """
@@ -3028,17 +2994,10 @@ class autoControllerThread(Thread):
             elif self.c_p['move2area_above_pipette']:
                  if self.move2area_above_pipette(move2particle=self.c_p['particle_in_pipette']):
                     self.c_p['move2area_above_pipette'] = False
-            #"""
-            #elif self.c_p['move_particle2pipette']:
-            #    if self.put_particle_in_pipette():
-            #        print("Particle in pipette, or close enough to do a sucking.")
-            #        self.c_p['move_particle2pipette'] = False
-            #"""
+                     
             elif self.c_p['touch_particles']:
-                # THis protocol does not have a clear stopping criterion yet, will have once we move to real experiments.
                 message = self.touch_trapped_2_pieptte_particle()
 
-                # Resets the aggresive stretching
                 self.limits_found = [False, False]
                 self.protocol_started = False
                 self.c_p['protocol_data'][0] = 0
@@ -3149,7 +3108,7 @@ class autoControllerThread(Thread):
             if self.c_p['focus_z_trap_pipette']:
                 # RESET THE pipette focus
                 if self.particle_in_pipette and self.particle_trapped:
-                    if self.z_focus(): # Focus on the pipette particle, have increased the sensitivity here
+                    if self.z_focus(): 
                         self.c_p['focus_z_trap_pipette'] = False
                 else:
                     print("Focusing pipette instead of particle in it")
@@ -3220,7 +3179,7 @@ class autoControllerThread(Thread):
         # Check that we are not moving the piezo, if we are then we cannot calibrate
 
         # Set the position of the piezos
-        self.c_p['portenta_command_2'] = 1 # Autoaliging A
+        self.c_p['portenta_command_2'] = 1 # Autoalign A
         target_x = int(3000 + self.calibration_x * self.grid_step)
         target_y = int(3000 + self.calibration_y * self.grid_step)
         x_pos_nok = np.abs(target_x-self.data_channels['dac_bx'].get_data(1)[0]) > 1000
