@@ -1,9 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Jan  9 14:48:59 2023
-
-@author: marti
-"""
 import torch
 import torch.nn as nn
 
@@ -33,7 +27,6 @@ def load_yolov5_model(model_path):
     model = torch.hub.load('.', 'custom', path=model_path, source='local') 
     return model
 
-# NOTE this file is not used anymore, tracking moved to AutoController.
 class ParticleCNN(nn.Module):
     def __init__(self):
         super(ParticleCNN, self).__init__()
@@ -68,7 +61,7 @@ def torch_unet_prediction(model, image, device, fac=1.4, threshold=260):
     can be used for more accurate real-time tracking of particles than what the 
     YOLO achieves.
     """
-    # This has been replaced with YOLO
+    
     new_size = [int(np.shape(image)[1]/fac),int(np.shape(image)[0]/fac)]
     rescaled_image = cv2.resize(image, dsize=new_size, interpolation=cv2.INTER_CUBIC)
     s = np.shape(rescaled_image)
@@ -155,7 +148,6 @@ def torch_unet_z_prediction(model, image, device, fac=2, num_channels_to_modify=
         sigmoid_channels = predicted_image[:, :num_channels_to_modify, :, :]  # Select the first N channels
         non_sigmoid_channels = predicted_image[:, num_channels_to_modify:, :, :]  # Select the remaining channels
         if sigmoid:
-            # Seems like applying sigmoid may be foolish.
             # Apply sigmoid to the selected channels
             sigmoid_applied = torch.sigmoid(sigmoid_channels)
             sigmoid_applied *= 255
@@ -330,8 +322,7 @@ class DeepLearningAnalyserLDS(Thread):
         
         # Use particle redii to determine position, check that it has not been updated erroneously.
         
-        radii = 1.5/self.c_p['microns_per_pix'] # rough radii estimate
-        #if (self.c_p['pipette_location'][0] - potential_pos[0])**2 + ((self.c_p['pipette_location'][1]-radii) - potential_pos[1])**2 < threshold:
+        radii = 1.5/self.c_p['microns_per_pix'] # radii estimate
         if (self.c_p['pipette_location'][0] - potential_pos[0])**2/3 + ((self.c_p['pipette_location'][1]-radii) - potential_pos[1])**2 < threshold:
             self.c_p['particle_in_pipette'] = True
             self.c_p['pipette_particle_location'][0:2] = potential_pos
@@ -372,7 +363,7 @@ class DeepLearningAnalyserLDS(Thread):
 
         LX = self.c_p['laser_position'][0] - self.c_p['AOI'][0]
         LY = self.c_p['laser_position'][1] - self.c_p['AOI'][2]
-        distances = [(x-LX)**2+(y-LY)**2 for x,y in self.c_p['predicted_particle_positions']] # TODO replace with result from find_closest_particle
+        distances = [(x-LX)**2+(y-LY)**2 for x,y in self.c_p['predicted_particle_positions']]
         self.c_p['Trapped_particle_position'][0:2], idx = self.find_closest_particle([LX, LY],True)
         self.c_p['Trapped_particle_position'][3] = self.c_p['predicted_particle_radii'][idx]
         # Check if we can get also the z-position, different units tough. Set to None if no z-position found.
@@ -397,7 +388,6 @@ class DeepLearningAnalyserLDS(Thread):
         # Pre-compute constants
         image_shape = np.shape(self.c_p['image'])
         try:
-            # Had problem with Index error here when the camera failed to return an image
             image_width, image_height = image_shape[1], image_shape[0]
         except:
             self.c_p['z-predictions'] = []
