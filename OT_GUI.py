@@ -1,11 +1,5 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Oct 19 15:50:13 2022
-
-@author: Martin Selin
-"""
 import sys
-import cv2 # Certain versions of this won't work
+import cv2
 import pickle
 import math
 
@@ -19,7 +13,6 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, pyqtSlot, QRunnable, QObject, QPoint, QRect, QTimer
 from PyQt6.QtGui import QPixmap, QImage, QPainter, QBrush, QColor, QAction, QDoubleValidator, QPen, QIntValidator, QKeySequence, QFont, QPolygon
 
-# from random import randint
 import numpy as np
 from time import sleep
 from functools import partial
@@ -41,7 +34,7 @@ from CameraMeasurementTool import CameraMeasurements
 from DeepLearningThread import DeepLearningControlWidget
 from PlanktonViewWidget import PlanktonViewer
 from DataChannelsInfoWindow import CurrentValueWindow
-from ReadArduinoPortenta import PortentaComms #For some reason we need to import this to be able to open the file explorer.
+from ReadArduinoPortenta import PortentaComms # Import this to be able to open the file explorer.
 from PortentaMultiprocess import PortentaComms
 from PullingProtocolWidget_2 import PullingProtocolWidget
 from StepperObjective import ObjectiveStepperControllerToolbar
@@ -862,9 +855,7 @@ class MainWindow(QMainWindow):
             self.add_position(idx)
         for idx in range(len(self.c_p['saved_positions'])):
             self.delete_positon_action(idx)
-        
-        # Todo add option to remove positions, set shortcut, move position etc.
-        # self.remove_positions_submenu = action_menu.addMenu("Remove saved positions")
+            
         def toggle_central_circle():
             self.c_p['central_circle_on'] = not self.c_p['central_circle_on']
 
