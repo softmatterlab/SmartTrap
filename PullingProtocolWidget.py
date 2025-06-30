@@ -2,7 +2,6 @@ from PyQt6.QtWidgets import QVBoxLayout, QLabel, QSpinBox, QWidget, QApplication
 
 from PyQt6.QtCore import Qt
 
-# from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QAction, QIntValidator
 from PyQt6.QtCore import QTimer, QTime
 from threading import Thread
@@ -14,7 +13,6 @@ from functools import partial
 
 
 class force_limits_protocoL_widget(QWidget):
-    # NOt finished and maybe not needed
     def __init__(self, c_p, data_channels):
 
         super().__init__()
@@ -36,8 +34,6 @@ class PullingProtocolWidget(QWidget):
         self.setWindowTitle("Pulling Protocol")
         self.initUI()
         self.data_channels = data_channels
-        # TODO handle the different piezos and how they are shared in a better way.
-        # Maybe have all the controls in the same widget?
         self.protocol_axis_index = 3 # AX=1, AY=2, BX=3, BY=4, BY default
         self.timer = QTimer()
         self.timer.setInterval(100) # sets the delay of the timer and thereby how often it should update.
@@ -49,7 +45,6 @@ class PullingProtocolWidget(QWidget):
         self.previous_force = 0
         self.current_position = 0
         self.previous_position = 0
-        #self.previous_force_time = 0
         self.force_move_direction = 1 # 1 for increasing, -1 for decreasing
         self.force_limit_protocol_running = False
 
@@ -121,7 +116,6 @@ class PullingProtocolWidget(QWidget):
         layout.addWidget(self.axisComboBox)
 
         # FORCE LIMIT PROTOCOL CONTROLS.
-        # TODO put them in a separate widget or something to clean it up a bit.
 
         self.lowerForceSpinBox = QDoubleSpinBox()
         self.lowerForceSpinBox.setRange(-120,120)
@@ -166,7 +160,6 @@ class PullingProtocolWidget(QWidget):
         # Sets the values of the spinboxes for us.
         self.lowerLimitSpinBox.setValue(10_000)
         self.upperLimitSpinBox.setValue(10_000)
-        # DO we need to update the parameters?
         self.updateParameters()
 
         if (not self.toggleProtocolButton.isChecked()) and self.force_limit_protocol_running:
@@ -216,8 +209,6 @@ class PullingProtocolWidget(QWidget):
             print("Switching move direction",self.current_force , self.previous_force ,self.current_force, self.lower_force_limit)
             self.force_move_direction = 1
 
-        # TODO check if the position exceeds the okay limits.
-
         if self.current_position > 62_000:
             self.force_move_direction = -1
         elif self.current_position < 2_000:
@@ -240,7 +231,6 @@ class PullingProtocolWidget(QWidget):
         upper_lim = self.c_p['protocol_data'][1]*256 + self.c_p['protocol_data'][2]
         step_size = self.c_p['protocol_data'][5]*256 + self.c_p['protocol_data'][6]
 
-        # TODO allow to set the lower limit bigger than the upper limit in the GUI, annoying otherwise...
         self.lowerLimitSpinBox.setValue(lower_lim)
         self.upperLimitSpinBox.setValue(upper_lim)
         self.stepSizeSpinBox.setValue(step_size)
