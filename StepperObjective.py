@@ -1,4 +1,3 @@
-
 from PyQt6.QtWidgets import (
     QPushButton, QVBoxLayout, QWidget, QLabel,QToolBar
 )
@@ -6,9 +5,6 @@ from PyQt6.QtWidgets import  QMenu
 from PyQt6.QtGui import QAction
 
 class ObjectiveStepperController(QWidget):
-
-
-
     
     """
     Simple widget to control the objective stepper motor. Can move the stepper motor
@@ -21,8 +17,6 @@ class ObjectiveStepperController(QWidget):
         self.last_write = "Q"
         self.ArduinoUnoSerial = ArduinoUnoSerial
 
-        #self.label = QLabel("Objective controller")
-        #layout.addWidget(self.label)
         self.setWindowTitle("Objective controller")
         
         # Add move towards button
@@ -55,25 +49,21 @@ class ObjectiveStepperController(QWidget):
         self.last_write = 'Q'
         message = self.last_write.encode('utf-8')
         self.ArduinoUnoSerial.write(message)
-        #print('Moving slowly towards sample.')
 
     def slow_away_from_sample(self):
         self.last_write = 'W'
         message = self.last_write.encode('utf-8')
         self.ArduinoUnoSerial.write(message)
-        #print('Moving slowly away from sample.')
 
     def fast_towards_sample(self):
         self.last_write = 'E'
         message = self.last_write.encode('utf-8')
         self.ArduinoUnoSerial.write(message)
-        #print('Moving fast towards sample.')
 
     def fast_away_from_sample(self):
         self.last_write = 'R'
         message = self.last_write.encode('utf-8')
         self.ArduinoUnoSerial.write(message)
-        #print('Moving fast away from sample.')
 
 class ObjectiveStepperControllerToolbar(QToolBar):
     """
@@ -105,8 +95,6 @@ class ObjectiveStepperControllerToolbar(QToolBar):
         self.fast_away_sample_action = QAction('Fast away from sample')
         self.fast_away_sample_action.triggered.connect(self.fast_away_from_sample)
         self.addAction(self.fast_away_sample_action)
-
-        #parent.addToolBar(self)
     
     def slow_towards_sample(self):
         self.last_write = 'Q'
