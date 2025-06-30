@@ -156,7 +156,6 @@ class PortentaCommsProcess(Process):
             self.send_data_to_portenta()
             self.read_portenta()
             sleep(1e-4)
-        # For some reason we never get here, appears as if the process is not stopped properly.
         print("Portenta comms process stopped.")
         if self.serial_channel is not None:
             
@@ -415,7 +414,7 @@ class PortentaComms(Thread):
             self.reset_motor_pos = False
         self.start_time = time()
 
-        self.calculate_quotes_fast(data_length) # This works but is a bit slow...
+        self.calculate_quotes_fast(data_length)
         self.calc_true_powers(data_length)
         self.calc_forces(data_length)
         
@@ -531,7 +530,6 @@ class PortentaComms(Thread):
         self.BPX_interpolator = self.create_fast_interpolator(self.c_p['calibration_points'][:,:,4],self.c_p['calibration_points'][:,:,5], self.c_p['calibration_points'][:,:,0])
         self.BPY_interpolator = self.create_fast_interpolator(self.c_p['calibration_points'][:,:,4],self.c_p['calibration_points'][:,:,5], self.c_p['calibration_points'][:,:,1])
 
-        # Do we use the lasers or the position of the particle? And which laser do we use? Starting with A and should be more or less the same as using B
         self.AFX_interpolator = self.create_fast_interpolator(self.c_p['calibration_points'][:,:,2],self.c_p['calibration_points'][:,:,3], self.c_p['calibration_points'][:,:,6])
         self.AFY_interpolator = self.create_fast_interpolator(self.c_p['calibration_points'][:,:,2],self.c_p['calibration_points'][:,:,3], self.c_p['calibration_points'][:,:,7])
 
