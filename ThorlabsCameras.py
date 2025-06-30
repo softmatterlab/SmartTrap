@@ -1,20 +1,11 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Oct 10 10:02:39 2022
-
-@author: marti
-"""
 from CameraControlsNew import CameraInterface
 import clr
 import sys
-# from System import Int32
 import nicelib
-import win32com.client as win32  # TODO check which of theese are necessary
+import win32com.client as win32 
 sys.path.append('C:/Program Files/Thorlabs/Scientific Imaging/DCx Camera Support/Develop/Lib')
 sys.path.append("C:/Program Files/Thorlabs/Scientific Imaging/DCx Camera Support/Develop/DotNet/signed")
 from instrumental import instrument, list_instruments, drivers, u, Q_
-# https://instrumental-lib.readthedocs.io/en/stable/uc480-cameras.html ->
-# Link to website with the camera package
 
 
 def number_to_millisecond(nbr):
