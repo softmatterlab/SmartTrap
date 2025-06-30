@@ -1,9 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Nov  3 11:37:17 2022
-
-@author: marti
-"""
 import sys
 from PyQt6.QtWidgets import (
     QMainWindow, QCheckBox, QComboBox, QListWidget, QLineEdit,
@@ -20,9 +14,6 @@ from random import randint
 
 import numpy as np
 from functools import partial
-
-# TODO adjust plot axis not working properly
-# TODO make these dockable
 
 Colors = {
     'red': (255,0,0),
@@ -252,10 +243,8 @@ class PlotWindow(QMainWindow):
     # NOTE there was a bug in pyqtgraph 0.12.3 which made the window
     # crash when setting back auto zoom on the axis
     
-    # TODO Make it possible to label the liveplots(instead of calling them just plot 0, plot 1 etc.
     def __init__(self, c_p, data, x_keys, y_keys, aspect_locked=False, grid_on=False, title="Data plotter", default_plot_length=5_000):
         super().__init__()
-        # TODO fix a nicer initalization of the plots
         self.c_p = c_p
         self.data = data
         self.graphWidget = pg.PlotWidget()
@@ -280,7 +269,6 @@ class PlotWindow(QMainWindow):
         pen = pg.mkPen(color=Colors['red'])
         self.pen2 = pg.mkPen(color=Colors['green'])
 
-        # TODO remake the plot data so that each entry is a dictionary, will make poping easier
         # Initalizing the plot data
         self.plot_data = {
             'x':[x for x in x_keys],
@@ -293,7 +281,6 @@ class PlotWindow(QMainWindow):
         self.plot_data['averaging'] = [False for _ in x_keys]
 
         self.data_lines = []
-        # TODO,have better default plots.
         self.data_lines.append(self.graphWidget.plot(self.x, self.y, pen=pen, name='plot 0'))
 
         self.data_point_markers = []
@@ -327,7 +314,6 @@ class PlotWindow(QMainWindow):
         self.plot_axis_action.triggered.connect(self.open_plot_axis_window)
         self.plot_axis_action.setCheckable(False)
 
-        # TODO hide this in a submenu.
         self.lock_aspect_action = QAction("Lock aspect ratio", self)
         self.lock_aspect_action.setToolTip("Lock the aspect ratio to have same scale on both axis.")
         self.lock_aspect_action.triggered.connect(self.lock_aspect_ratio)
@@ -343,8 +329,6 @@ class PlotWindow(QMainWindow):
         self.addToolBar(self.toolbar)
         self.create_plot_menus()
         
-        # TODO have all the subwindows close automatically when main application close
-        # TODO fix label sizes, font and so that they automatically have correct axis
         self.set_axis_labels()
 
         self.delete_plot(0)
@@ -412,7 +396,6 @@ class PlotWindow(QMainWindow):
         self.color_idx = self.color_idx % len(Colors)
         key = list(Colors)[self.color_idx]
         pen = pg.mkPen(color=Colors[key]) # Default color
-        # TODO add also symbols here so that also they are saved.
         self.plot_data['pen'].append(pen)
         plot_name = f"{xname} vs {yname} - plot {len(self.data_lines)}"
         self.data_lines.append(self.graphWidget.plot(self.x, self.y, name=plot_name,pen=pen, autoDownsample=True) ) # Added auto downsample to improve performance
@@ -425,7 +408,7 @@ class PlotWindow(QMainWindow):
 
         self.plot_data['x'].pop(plot_idx)
         self.plot_data['y'].pop(plot_idx)
-        self.plot_data['pen'].pop(plot_idx) # TODO fix out of range error which sometimes occur
+        self.plot_data['pen'].pop(plot_idx)
         self.plot_data['averaging'].pop(plot_idx)
 
         self.data_lines[plot_idx].setVisible(False)
@@ -545,7 +528,6 @@ class PlotWindow(QMainWindow):
             Plot_1_menu.addAction(toggle_averaging_action)
  
     def set_plot_symbol(self, plot_idx, symbol):
-        # TODO save symbol as well
         try:
             self.data_lines[plot_idx].setSymbol(symbol)
         except Exception as E:
@@ -595,7 +577,6 @@ class PlotWindow(QMainWindow):
                     prefac[0] *= 14
                 try:
                     if self.plot_data['averaging'][idx]:
-                        # TODO maybe add option to not average both signals...
                         x_data = self.non_overlapping_average(self.data[x_key].get_data(L*prefac[0]), S*prefac[0])
                         y_data = self.non_overlapping_average(self.data[y_key].get_data(L*prefac[1]), S*prefac[1])                   
                     else:
@@ -605,7 +586,6 @@ class PlotWindow(QMainWindow):
 
                     m_l = min(len(x_data), len(y_data))
                     self.data_lines[idx].setData(x_data[0:m_l], y_data[0:m_l])
-                    #self.data_lines[idx].setPen(self.plot_data['pen'][idx]) # TODO check if needed, was not
                     self.data_point_markers[idx].setData([x_data[-1]], [y_data[-1]])
 
                 except Exception as e:
@@ -646,8 +626,6 @@ class PlotWindow(QMainWindow):
         line = self.data_lines[idx]
         line.setSymbolPen(pen)
         line.setSymbolBrush(color) # Can be used to set the symbol color
-        # todo TEST AND SEE if we need to save the pen.
-    # TODO add marker size option
 
     def set_plot_color(self, color, idx):
         pen = pg.mkPen(color=color)
