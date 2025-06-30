@@ -149,7 +149,6 @@ def find_particle_radii(image,threshold=120, particle_size_threshold=200,
     thresholded_image = cv2.blur(image, (8, 8)) > threshold
     if fill_holes:
         # Fill holes in the image before labeling
-        # Something wrong with fill_holes when using dark particle
         thresholded_image = ndi.morphology.binary_fill_holes(thresholded_image)
 
     # Separate the thresholded image into different sections
@@ -164,7 +163,7 @@ def find_particle_radii(image,threshold=120, particle_size_threshold=200,
     for group, pixel_count in enumerate(counts): # First will be background
         if particle_upper_size_threshold>pixel_count>particle_size_threshold:
             # Particle found, locate center of mass of the particle
-            cy, cx = ndi.center_of_mass(separate_particles_image==group) # This is slow
+            cy, cx = ndi.center_of_mass(separate_particles_image==group)
             if check_circular:
                 M = measure.moments_central(separate_particles_image==group, order=2)
                 if 0.7 < (M[0, 2] / M[2, 0]) < 1.3:
@@ -220,7 +219,7 @@ def get_torch_prediction_array(model, images, device, fac=4, threshold=150):
 
     # Analyze the predictions
     for i in range(len(images)):
-        x_, y_, _ = find_particle_centers_fast( #fpt.find_particle_centers_fast was changed from to get only circular predictions
+        x_, y_, _ = find_particle_centers_fast(
             np.array(resulting_images[i, 0, :, :]), threshold, particle_size_threshold=600
         )
         if len(x_) > 0:
@@ -269,58 +268,6 @@ def get_torch_prediction(model, image, device, fac=4, threshold=150):
     )
 
     return x, y, resulting_image[0, 0, :, :]
-"""
-
-def get_torch_prediction_array(model, images,device, fac=4, threshold=150):
-    image = images[0]
-    new_size = [int(np.shape(image)[1]/fac),int(np.shape(image)[0]/fac)]
-    rescaled_image = cv2.resize(image, dsize=new_size, interpolation=cv2.INTER_CUBIC)
-
-    s = np.shape(rescaled_image)
-    rescaled_image = rescaled_image[:s[0]-s[0]%32, :s[1]-s[1]%32]
-    rescaled_images = np.zeros([len(images),1,np.shape(rescaled_image)[0],np.shape(rescaled_image)[1]])
-    for i,image in enumerate(images):
-        rescaled_image = cv2.resize(image, dsize=new_size, interpolation=cv2.INTER_CUBIC)
-        rescaled_image = rescaled_image[:s[0]-s[0]%32, :s[1]-s[1]%32]
-        rescaled_images[i,0,:,:] = rescaled_image
-    rescaled_images = np.float32(rescaled_images)
-    with torch.no_grad():
-        predicted_images = model(torch.tensor(rescaled_images).to(device))
-    resulting_images = predicted_images.detach().cpu().numpy()
-    x = []
-    y = []
-    for i in range(len(images)):
-        x_,y_,_ = fpt.find_particle_centers_fast(np.array(resulting_images[i,0,:,:]), threshold, particle_size_threshold=600)
-        if len (x_)>0:
-            x.append(x_)
-            y.append(y_)
-        else:
-            
-            x_,y_,_ = get_torch_prediction(model,images[i],device,fac=fac,threshold=threshold)
-            if len(x_)>0:
-                x.append(x_)
-                y.append(y_)
-            else:
-                x.append([0])
-                y.append([0])
-    return x, y
-
-
-def get_torch_prediction(model, image,device, fac=4, threshold=150):
-
-    new_size = [int(np.shape(image)[1]/fac),int(np.shape(image)[0]/fac)]
-    rescaled_image = cv2.resize(image, dsize=new_size, interpolation=cv2.INTER_CUBIC)
-    s = np.shape(rescaled_image)
-    rescaled_image = rescaled_image[:s[0]-s[0]%32, :s[1]-s[1]%32]
-    # TODO do more of this in pytorch which is faster since it works on GPU
-    rescaled_image = np.float32(np.reshape(rescaled_image,[1,1,np.shape(rescaled_image)[0],np.shape(rescaled_image)[1]]))
-    with torch.no_grad():
-        predicted_image = model(torch.tensor(rescaled_image).to(device))
-    resulting_image = predicted_image.detach().cpu().numpy()
-    x,y,_ = fpt.find_particle_centers_fast(np.array(resulting_image[0,0,:,:]), threshold, particle_size_threshold=600)
-    
-    return x, y, resulting_image[0,0,:,:]
-"""
 
 def split_image_np(img_np, num_images):
     h, w, _ = img_np.shape
@@ -347,49 +294,20 @@ def plot_prediction(image,model,device, fac=1,threshold=200):
     plt.plot(fac*np.array(x),fac*np.array(y),'*r')
     # Display segmentation
     plt.subplot(1,3,2)
-    plt.imshow(_)#resulting_image[0,0,:,:]>150)
+    plt.imshow(_)
     plt.colorbar()
     plt.subplot(1,3,3)
-    plt.imshow(_>threshold)#resulting_image[0,0,:,:]>150)
+    plt.imshow(_>threshold)
     plt.plot(x,y,'*r')
     plt.title(f"Segmentation no ")
     plt.show()
-"""
-def track_video(video_path, model,fac,threshold=150,format='npy',frame_limit=-1):
-    x_pos = []
-    y_pos = []
-    r_meas = []
-    if format == 'npy':
-        generator = npy_generator(video_path)
-    elif format =="avi":
-        generator = avi_frame_generator(video_path)
-    for idx,image in enumerate(generator):
-        if image is None:
-            break
-        if frame_limit>0 and idx>frame_limit:
-            break
-        if idx%100==0:
-            print(idx)
-        x,y,ret  = get_torch_prediction(model,image,fac=fac,threshold=threshold)
-        xt,yt,r,_ = find_particle_radii(ret,threshold=threshold)
-
-        r_meas.append(fac*np.array(r))
-        x_pos.append(fac*np.array(x))
-        y_pos.append(fac*np.array(y))
-    y_microns = np.transpose(np.array(y_pos))/18.28
-    x_microns = np.transpose(np.array(x_pos))/18.28
-    r_microns = np.transpose(np.array(r_meas))/18.28
-    return x_microns, y_microns, r_microns
-"""
 
 def synchronize_data(data_path, dy,window_size=100):
     data = np.load(data_path, allow_pickle=True)
-    #dy = y_microns[0,:]-y_microns[1,:]
     cam_start, cam_stop = AHF.get_cam_move_lims(dy)
     cam_start += 5
     cam_stop += -2
     psd_start, psd_stop = AHF.get_limits_PSD(data)
-    # TODO add the tilt to the analysis
 
     X_data, Y_data, X_data_A, Y_data_A, X_data_B, Y_data_B = AHF.prepare_plot_data(data,Window_size=window_size,start=psd_start,stop=psd_stop, shorten=True)
     print(cam_start,cam_stop, len(dy))
@@ -529,7 +447,6 @@ def track_video(video_path,model,device,format="npy",indices=None, frames_per_pr
             continue
         if image is not None:
             images.append(image)
-        # A bit of an ugly solution to out-of memory problem when tracking large movies.
         if image is not None and len(np.shape(image))>1:
             if np.shape(image)[0]>1000 or np.shape(image)[1]>1000:
                 frames_per_prediction = 3
@@ -601,7 +518,6 @@ def get_model_and_device(model_path="NeuralNetworks/TorchBigmodelJune_1"):
     model = UNet(
         input_shape=(1, 1, 256, 256),
         number_of_output_channels=1,  # 2 for binary segmentation and 3 for multiclass segmentation
-        #conv_layer_dimensions=(8, 16, 32, 64, 128, 256),  # smaller UNet (faster training)
         conv_layer_dimensions=(64, 128, 256, 512, 1024),  # standard UNet
     )   
     model.load_state_dict(torch.load(model_path))
@@ -611,7 +527,6 @@ def get_model_and_device(model_path="NeuralNetworks/TorchBigmodelJune_1"):
 
 ticks_per_micron = 6.24 
 # Functions for calculating the stokes radius and doing a stokes test
-
 
 def find_movement_areas(data, axis, threshold = 200, offset=10, positive=True,margin=100):
     """
@@ -660,7 +575,6 @@ def find_movement_areas_force(data, axis, threshold = 200, offset=10, positive=T
     motor_time = (data['Motor time']-data['Motor time'][0])/1e6
     speed = (y[offset:]-y[:-offset])/(motor_time[:-offset]-motor_time[offset:]) # Speed in microns/s
     
-    #return speed
     _, move_indices = extract_high_rising_indices(speed, positive, threshold=threshold, margin=margin)
     
     # Extract the mean forces in positive and negative direction
@@ -755,7 +669,7 @@ def analyze_file(filepath, axis='y', radii=2.12e-6,eta=0.9321e-3,corrected=False
 
     data = np.load(filepath, allow_pickle=True)
     analysis = find_movement_areas(data,axis,offset=10, positive=True)
-    start_length = 1000 # used to be 5000, was giving problems with some fast measurements
+    start_length = 1000
     if axis == 'y':
         data_axis = "Y"
         id1 = 3
@@ -769,10 +683,6 @@ def analyze_file(filepath, axis='y', radii=2.12e-6,eta=0.9321e-3,corrected=False
     
     df_A = analysis[id1]-start_mean_A
     df_B = analysis[id2]-start_mean_B
-    # mean_speed = np.mean(analysis[0])
-    # speed_ms = mean_speed*1e-6
-    # print(f"Speed is {mean_speed} microns per second")
-     #23 C 0.9795e-3 # ca 1 mm*^2/s, viscocity at 21 C. lower if higher temp
     a = radii
     if corrected:
         drag = 6 * np.pi*eta*a*(1+18*a/(16*d))
@@ -829,7 +739,7 @@ def analyze_file_hydrodynamic_radius_wall_correction(filepath,eta=0.9321e-3,d=10
         start_length = 5000
         if axis == 'y':
             data_axis = "Y"
-            force = np.mean(analysis[2])-np.mean(data['F_total_X'][0:start_length]) # Are x and y mixed up?
+            force = np.mean(analysis[2])-np.mean(data['F_total_X'][0:start_length])
         elif axis == 'x':
             data_axis = "X"
             force = np.mean(analysis[1])-np.mean(data['F_total_Y'][0:start_length])      
