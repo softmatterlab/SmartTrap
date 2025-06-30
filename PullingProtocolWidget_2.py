@@ -2,7 +2,6 @@ from PyQt6.QtWidgets import QVBoxLayout, QLabel, QSpinBox, QWidget, QApplication
 
 from PyQt6.QtCore import Qt
 
-# from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QAction, QIntValidator
 from PyQt6.QtCore import QTimer, QTime
 from threading import Thread
@@ -14,7 +13,6 @@ from functools import partial
 
 
 class force_limits_protocoL_widget(QWidget):
-    # NOt finished and maybe not needed
     def __init__(self, c_p, data_channels):
 
         super().__init__()
@@ -36,8 +34,6 @@ class PullingProtocolWidget(QWidget):
         self.setWindowTitle("Pulling Protocol")
         self.initUI()
         self.data_channels = data_channels
-        # TODO handle the different piezos and how they are shared in a better way.
-        # Maybe have all the controls in the same widget?
         self.protocol_axis_index = 1 # AX=1, AY=2, BX=3, BY=4, BY default
         self.timer = QTimer()
         self.timer.setInterval(100) # sets the delay of the timer and thereby how often it should update.
@@ -117,7 +113,7 @@ class PullingProtocolWidget(QWidget):
         layout.addWidget(self.upperLimitSpinBox)
 
         self.stepSizeSpinBox = QDoubleSpinBox()
-        self.stepSizeSpinBox.setRange(0, 65332) # TODO Test that high values work - Seems OK
+        self.stepSizeSpinBox.setRange(0, 65332) 
         self.stepSizeSpinBox.valueChanged.connect(self.updateParameters)
         self.stepSizeSpinBox.setValue(self.c_p['protocol_data'][5]*256 + self.c_p['protocol_data'][6])
         self.stepSizeConverter = self.stepSizeSpinBox.value
@@ -134,9 +130,6 @@ class PullingProtocolWidget(QWidget):
         layout.addWidget(self.toggleProtocolButton)
 
         # FORCE LIMIT PROTOCOL CONTROLS.
-        # TODO put them in a separate widget or something to clean it up a bit.
-        # TODO Use the force spin-boxes for the force limit protocol.
-
 
         self.lowerForceSpinBox = QDoubleSpinBox()
         self.lowerForceSpinBox.setRange(-120,120)
@@ -235,12 +228,6 @@ class PullingProtocolWidget(QWidget):
         is exceeded (either positive or negative) the direction is switched.
         
         """
-        # TODO This will need to be remade to work with the new protocol system.
-        # Adjusted the protocol, now only allows for movement along y and with the bead in the pipette on the bottom, pulling down.
-        # Sets the values of the spinboxes for us.
-        # self.lowerLimitSpinBox.setValue(10_000)
-        # self.upperLimitSpinBox.setValue(10_000)
-        # DO we need to update the parameters?
         self.updateParameters()
 
         if (not self.toggleProtocolButton.isChecked()) and self.force_limit_protocol_running:
@@ -268,7 +255,6 @@ class PullingProtocolWidget(QWidget):
                 else:
                     self.axisComboBox.setCurrentIndex(10) # AY -
                     self.c_p['protocol_data'][0] = 11
-            # TODO default to A autoaligning.
         else:
             self.current_force = np.mean(self.data_channels['F_total_X'].get_data(100)) # Calculates the current force
             if self.c_p['portenta_command_2'] == 1: # A is being autoaligned
@@ -280,15 +266,10 @@ class PullingProtocolWidget(QWidget):
         self.upper_force_limit = self.upperForceSpinBox.value()
         if self.current_force > self.upper_force_limit: # Force increasing
             # Switch direction
-            #print("Switching move direction",self.current_force , self.previous_force ,self.current_force, self.upper_force_limit)
             self.force_move_direction = -1 # Moving up
         if self.current_force < self.lower_force_limit:
             # Switch direction
-
-            #print("Switching move direction",self.current_force , self.previous_force ,self.current_force, self.lower_force_limit)
             self.force_move_direction = 1
-
-        # TODO check if the position exceeds the okay limits.
 
         if self.current_position > 62_000:
             self.force_move_direction = -1
@@ -314,7 +295,6 @@ class PullingProtocolWidget(QWidget):
         return Y+32768
  
     def stepSizeConverterFunc(self):
-        # TODO calibrate this
         return self.stepSizeSpinBox.value()
     
 
@@ -327,14 +307,12 @@ class PullingProtocolWidget(QWidget):
             upper_lim = self.c_p['protocol_data'][1]*256 + self.c_p['protocol_data'][2]
             step_size = self.c_p['protocol_data'][5]*256 + self.c_p['protocol_data'][6]
 
-            # TODO allow to set the lower limit bigger than the upper limit in the GUI, annoying otherwise...
             self.lowerLimitSpinBox.setValue(lower_lim)
             self.upperLimitSpinBox.setValue(upper_lim)
             self.stepSizeSpinBox.setValue(step_size)
         self.toggleProtocolButton.setChecked(self.c_p['protocol_data'][0]>0)
 
     def getParametersAs8BitArrays(self):
-        # TODO here it should instead return the value of the converter.
         lower_limit = int(self.lowerLimitConverter())
         upper_limit = int(self.upperLimitConverter())
         step_size = int(self.stepSizeConverter())
@@ -345,8 +323,6 @@ class PullingProtocolWidget(QWidget):
         return split_16_bit(lower_limit), split_16_bit(upper_limit), split_16_bit(step_size)
 
     def updateParameters(self):
-        # if self.protocol_axis_index > 20:
-        #     return
 
         lower_limit, upper_limit, step_size = self.getParametersAs8BitArrays()
         # Updates the parameters unless lower lim>upper limit
@@ -354,14 +330,12 @@ class PullingProtocolWidget(QWidget):
         if upper_limit < lower_limit and self.protocol_axis_index<16:
             print("Upper limit must be larger than lower limit!, not updating parameters")
         else:
-            #print("Updating parameters", upper_limit, lower_limit)
             self.upper_limit_old_value = upper_limit
             self.lower_limit_old_value = lower_limit
         
         self.c_p['protocol_data'][1:3] = self.upper_limit_old_value # upper_limit
         self.c_p['protocol_data'][3:5] = self.lower_limit_old_value # lower_limit
         self.c_p['protocol_data'][5:7] = step_size
-        # print(f"Updating parameters Lower limit: {lower_limit}, Upper limit: {upper_limit}, Step size: {step_size}")
 
     def selectProtocolAxis(self, index):
         
@@ -399,7 +373,6 @@ class PullingProtocolWidget(QWidget):
                                       protocol_description = "Moves laser B at constant speed along y-axis. \n Moves between the two positions specified below",
                                       )
             case 5:
-                # This is somewhat different from the other
                 self.configure_widget(lower_lim_name="Lower Limit (Force A-X positive)",
                                       lower_lim_tooltip="Lower limit of the protocol, in nm. \n NOTE: The lower limit must be smaller than the upper limit!",
                                       upper_lim_name="Upper Limit (Force A-X positive)",
