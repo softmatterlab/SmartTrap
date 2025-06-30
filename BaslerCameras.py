@@ -1,12 +1,6 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Oct 10 11:33:55 2022
-
-@author: marti
-"""
 import numpy as np
 from CameraControlsNew import CameraInterface
-from pypylon import pylon  # For basler camera, maybe move that out of here
+from pypylon import pylon 
 from time import sleep
 
 
@@ -25,23 +19,16 @@ class BaslerCamera(CameraInterface):
             self.cam.StartGrabbing(pylon.GrabStrategy_OneByOne)
             self.is_grabbing = True
         try:
-            with self.cam.RetrieveResult(3000) as result: # 3000
+            with self.cam.RetrieveResult(3000) as result:
                 self.img.AttachGrabResultBuffer(result)
                 if result.GrabSucceeded():
-                    # Consider if we need to put directly in c_p?
                     image = np.uint8(self.img.GetArray())
-                    self.img.Release()  # This was commented out recently 
+                    self.img.Release()
                     return image
         except TimeoutException as TE:
             print(f"Warning, camera timed out {TE}")
 
         except Exception as ex:
-            """
-            Here we are catching all other exceptions, this is not good practice but done to catch when the camera
-            overheats.
-            Reconnecting is not trivial but ususally works after a few tries. The best way to prevent it is to lower the
-            framerate. This did not happen before improving the illumination and therby the framerate.
-            """
             print(f"Warning, camera error!\n {ex}")
             print("Trying to reconnect camera\n Camera may be overheating! Consider lowering framerate!")
             self.disconnect_camera()
@@ -56,8 +43,7 @@ class BaslerCamera(CameraInterface):
             sleep(0.2)
             self.cam.AcquisitionFrameRateEnable = False # Default is max fps
             try:
-                # TODO test if this worked, can reach close to 4000 fps with it on a decently large AOI.
-                self.camera.SensorReadoutMode.SetValue("Fast")
+               self.camera.SensorReadoutMode.SetValue("Fast")
             except Exception as ex:
                 print(f"Sensor readout mode not accepted by camera, {ex}")
             return True
@@ -80,13 +66,11 @@ class BaslerCamera(CameraInterface):
         self.is_grabbing = False
 
     def set_frame_rate(self, frame_rate):
-        # TODO make it possible to disable frame rate
         print("setting framerate")
         self.cam.AcquisitionFrameRateEnable = True
         self.cam.AcquisitionFrameRateEnable.SetValue(True)
         
         try:
-            #self.cam.AcquisitionFrameRate = frame_rate
             self.cam.AcquisitionFrameRate.SetValue(float(frame_rate))
         except Exception as ex:
             print(f"Frame rate not accepted by camera, {ex}")
@@ -113,7 +97,6 @@ class BaslerCamera(CameraInterface):
             below. Conditions might need to be changed if the usecase of this
             funciton change.
             '''
-            # TODO test with a real sample
             width = int(AOI[1] - AOI[0])
             offset_x = AOI[0]
             height = int(AOI[3] - AOI[2])
