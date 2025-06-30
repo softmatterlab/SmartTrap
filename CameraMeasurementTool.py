@@ -39,7 +39,6 @@ class CameraMeasurements(MouseInterface):
         pass
     
     def draw(self, qp):
-        # TODO add draw here to show exactly where the click was
         qp.setPen(self.red_pen)
 
         qp.drawEllipse(self.x_prev_A-self.circle_radii, self.y_prev_A-self.circle_radii, self.circle_radii*2,self.circle_radii*2)
