@@ -8,7 +8,7 @@ Schematics for the instrument are in the folder schematics.
 ## Graphical user interface
 ### Installation
 To run the Graphical user interface (GUI) first download the files. It is recommended to create a separate python environment for the SmartTrap software. Recommended to use python 3.10
-The software makes use of several third party packages which are installed by running the pip install -r requirements.txt command.
+The software makes use of several third party packages which are lised in the PackagesNeeded file. The packages needed for YOLO are installed by running the pip install -r requirements.txt command.
 
 ### Running the software
 Once the installation is complete the program is run by from a anaconda prompt with the command:
