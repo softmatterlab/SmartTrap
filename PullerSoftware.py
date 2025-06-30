@@ -96,7 +96,7 @@ class PSUControlPanel(QWidget):
         ]
         self.ramp_duration = 8.5
         self.max_time = 10
-        self.max_current = 3.25 # Seems to depend on the cables used, for the thicker ones 2.81, for the thinner 2.86 (ca)
+        self.max_current = 3.25
         self.ramp_frequency = 20
         self.voltage = 5
         self.initUI()
@@ -261,7 +261,6 @@ class PSUControlPanel(QWidget):
 
     def handle_protocol_update(self, message):
         # Handle updates from the protocol thread (e.g., update a status label)
-       #print(message)
         pass
 
     def disconnect(self):
