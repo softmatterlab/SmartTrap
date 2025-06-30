@@ -25,12 +25,10 @@ def configure_path():
         absolute_path_to_file_directory = os.getcwd()
 
     absolute_path_to_dlls = os.path.abspath(absolute_path_to_file_directory + os.sep + relative_path_to_dlls)
-    #absolute_path_to_dlls = "C:/Users/Martin/OneDrive - University of Gothenburg/PhD/OT software/Main branch/Suporting Software/Scientific Camera Interfaces/SDK/Python Toolkit/dlls/64_lib"
-
+    
     os.environ['PATH'] = absolute_path_to_dlls + os.pathsep + os.environ['PATH']
 
     try:
-        # Python 3.8 introduces a new method to specify dll directory
         os.add_dll_directory(absolute_path_to_dlls)
         print("Path added successfully")
     except AttributeError:
