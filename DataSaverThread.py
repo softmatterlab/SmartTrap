@@ -42,13 +42,10 @@ class DataSaverThread(Thread):
     def get_data_dict(self):
         self.stop_idx = self.data_channels['PSD_A_P_X'].index
         self.stop_idx_motors = self.data_channels['Motor_x_pos'].index
-        # TODO this won't handle channels sampled at different speeds(such as those tracked by DL thread) particularly well
-        
+   
         sleep(0.1) # Waiting for all channels to reach this point
         data = {}
 
-         # TODO make sure that it saves continously and not just once at the end...
-         # TODO handle the case in which some data saving is toggled on/off while recording the data. Maybe turn on/off saving?
         for channel in self.data_channels:
             if self.data_channels[channel].saving_toggled:
                 if channel in self.c_p['multi_sample_channels'] or channel in self.c_p['derived_PSD_channels']:
@@ -79,43 +76,3 @@ class DataSaverThread(Thread):
             if not self.c_p['saving_data'] and self.saving:
                 self.stop_saving()
             sleep(self.sleep_time)
-
-
-
-
-    """
-    def stop_saving(self):
-        # TODO ensure that the there is no maximum limit on the filesize
-        # - too many ifs and elses to make the code nice
-        # - test this carefully and see if there is some better way to do this,
-        #    i.e can we handle also the other channels such as computer time efficiently here?
-        # - derived channels did not get saved correctly here, check if the fix works.
-        #   Need to add parameter to the channel to indicate the sampling rate of it.
-        # For instance by stopping, saving and making a new file. Not the most elegant solution but it should work.
-        self.saving = False
-        print("Saving stopped")
-        # BETTER to use a different format. This is not very efficient.
-        self.stop_idx = self.data_channels['PSD_A_P_X'].index
-        self.stop_idx_motors = self.data_channels['Motor_x_pos'].index
-        sleep(0.1) # Waiting for all channels to reach this point
-        data = {}
-         # TODO make sure that it saves continously and not just once at the end...
-        for channel in self.data_channels:
-            if self.data_channels[channel].saving_toggled:
-                if channel in self.c_p['multi_sample_channels'] or channel in self.c_p['derived_PSD_channels']:
-                    if self.start_idx < self.stop_idx:
-                        data[channel] = self.data_channels[channel].data[self.start_idx:self.stop_idx]
-                    else:
-                        data[channel] = np.concatenate([self.data_channels[channel].data[self.start_idx:],
-                                                        self.data_channels[channel].data[:self.stop_idx]])
-                else:
-                    if self.start_idx_motors < self.stop_idx_motors:
-                        data[channel] = self.data_channels[channel].data[self.start_idx_motors:self.stop_idx_motors]
-                    else:
-                        data[channel] = np.concatenate([self.data_channels[channel].data[self.start_idx_motors:],
-                                                        self.data_channels[channel].data[:self.stop_idx_motors]])
-
-        filename = self.c_p['recording_path'] + '/' + self.c_p['filename'] + str(self.data_idx)
-        with open(filename, 'wb') as f:
-                pickle.dump(data, f)
-    """
