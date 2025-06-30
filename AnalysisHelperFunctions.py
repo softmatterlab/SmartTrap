@@ -440,8 +440,6 @@ def find_unzipping_rezipping(Position, width=100):
     Splits the force and position data into 
     Assumes that the P1 protocol was used for the zipping
     """
-    # TODO cannot handle changing protocol during aquisition!
-    # PRoblems if there is one peak without a matching "valley" somewhere in the middle.
     unzipping_force = []
     rezipping_force = []
     
@@ -469,19 +467,7 @@ def find_unzipping_rezipping(Position, width=100):
             pass
         
     return unzipping_force, rezipping_force
-"""
-def find_increasing_decreasing_regions(signal):
-    increasing_indices = []
-    decreasing_indices = []
-    
-    for i in range(len(signal) - 1):
-        if signal[i+1] > signal[i]:
-            increasing_indices.append(i)
-        elif signal[i+1] < signal[i]:
-            decreasing_indices.append(i)
-    
-    return increasing_indices, decreasing_indices
-"""
+
 def find_increasing_decreasing_regions(signal):
     increasing_regions = []
     decreasing_regions = []
@@ -519,7 +505,7 @@ def resample_signal(y, target_length):
     return f(np.linspace(0, 1, target_length))
 
 def prepare_plot_data(data,Window_size=10,start=600_000,stop=700_000, shorten=False):
-    psd_to_pos = [14.252,12.62]# [19,13.3]#[14.252,12.62]
+    psd_to_pos = [14.252,12.62]
     BFY_conversion = 0.0574201948018158 / 2
     AFY_conversion = 0.0513402835970939 / 2 
     analysis_func = fixed_window_avg if shorten else rolling_average
@@ -584,7 +570,3 @@ def WLC_model_p_fit(F,T,x,L0):
     f1 = 1.0 / (4 * ((1 - x / L0)**2))
     Lp = kB*T/F*(f1-1/4+x/L0)
     return Lp
-"""
-Here is an example script for analyzing the data from a measurement which includes both 
-
-"""
