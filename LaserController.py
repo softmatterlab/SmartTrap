@@ -92,8 +92,6 @@ class LaserControllerWidget(QWidget):
         message = "TCR\r"
         self.laser_A_ser.write(message.encode('utf-8'))
 
-        # TODO query if the laser is on or off
-
     def get_name(self, idx):
         folder = '\RBC_no-'+str(self.RBC_no)
         if not os.path.exists(self.c_p['recording_path']+folder):
@@ -109,7 +107,6 @@ class LaserControllerWidget(QWidget):
             time.sleep(0.05)
         self.OT_GUI.ToggleRecording()
         self.snapshot_taken = False
-        # self.OT_GUI.snapshot()
 
     def stop_data_recording(self):
         self.OT_GUI.stop_saving()
@@ -130,7 +127,6 @@ class LaserControllerWidget(QWidget):
         sleep(0.05)
 
     def RBC_auto_experiment(self):
-        # TODO do not like that this is in this qwidget class and not in the autocontroller
         self.toggle_experiment_button.setChecked(self.c_p['RBC_experiment_running'])
         if not self.c_p['RBC_experiment_running']:
             if self.experiment_started:
@@ -319,7 +315,6 @@ class LaserControllerWidget(QWidget):
         self.set_laser_B_current()
 
     def set_laser_A_current(self):
-        # current = int(self.current_A_edit_val) # TODO get the value directly from the edit box 
         current = self.laserA_CurrentEdit.value()
 
         if int(current)>400 or int(current)<0:
@@ -435,8 +430,6 @@ class LaserControllerToolbar(QWidget):
         # Turn on temperature controller
         message = "TCR\r"
         self.laser_A_ser.write(message.encode('utf-8'))
-
-        # TODO query if the laser is on or off
 
     def get_name(self, idx):
         self.c_p['filename'] = 'RBC_experiment_no-'+str(self.experiment_idx)+ '_A' + str(self.c_p['RBC_laser_currents'][idx][0]) + '-B' + str(self.c_p['RBC_laser_currents'][idx][1])
@@ -658,7 +651,6 @@ class LaserControllerToolbar(QWidget):
         self.set_laser_B_current()
 
     def set_laser_A_current(self):
-        # current = int(self.current_A_edit_val) # TODO get the value directly from the edit box 
         current = self.laserA_CurrentEdit.value()
 
         if int(current)>400 or int(current)<0:
