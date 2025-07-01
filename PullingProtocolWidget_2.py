@@ -94,7 +94,7 @@ class PullingProtocolWidget(QWidget):
         self.lowerLimitSpinBox = QDoubleSpinBox() # Change to a double spinbox if we want to allow for decimal values.
         self.lowerLimitSpinBox.setRange(0, 65535)
         self.lowerLimitSpinBox.valueChanged.connect(self.updateParameters)
-        self.lowerLimitSpinBox.setValue(self.c_p['protocol_data'][3]*256 + self.c_p['protocol_data'][4])
+        self.lowerLimitSpinBox.setValue(int(self.c_p['protocol_data'][3])*256 + int(self.c_p['protocol_data'][4]))
         self.lowerLimitSpinBox.setToolTip("Lower limit of the protocol, in nm. \n NOTE: The lower limit must be smaller than the upper limit!\n also acts to set the threshold force value in the approach to surface experiments.")
         self.lowerLimitConverter = self.lowerLimitSpinBox.value
         self.lower_lim_label = QLabel("Lower Limit:")
@@ -105,7 +105,7 @@ class PullingProtocolWidget(QWidget):
         self.upperLimitSpinBox = QDoubleSpinBox()
         self.upperLimitSpinBox.setRange(0, 65535)
         self.upperLimitSpinBox.valueChanged.connect(self.updateParameters)
-        self.upperLimitSpinBox.setValue(self.c_p['protocol_data'][1]*256 + self.c_p['protocol_data'][2])
+        self.upperLimitSpinBox.setValue(int(self.c_p['protocol_data'][1])*256 + int(self.c_p['protocol_data'][2]))
         self.upperLimitSpinBox.setToolTip("Upper limit of the protocol, in nm. \n NOTE: The upper limit must be larger than the lower limit!")
         self.upperLimitConverter = self.upperLimitSpinBox.value        
         self.upper_limit_label = QLabel("Upper Limit:")
@@ -115,7 +115,7 @@ class PullingProtocolWidget(QWidget):
         self.stepSizeSpinBox = QDoubleSpinBox()
         self.stepSizeSpinBox.setRange(0, 65332) 
         self.stepSizeSpinBox.valueChanged.connect(self.updateParameters)
-        self.stepSizeSpinBox.setValue(self.c_p['protocol_data'][5]*256 + self.c_p['protocol_data'][6])
+        self.stepSizeSpinBox.setValue(int(self.c_p['protocol_data'][5])*256 + int(self.c_p['protocol_data'][6]))
         self.stepSizeConverter = self.stepSizeSpinBox.value
         self.stepSizeLabel = QLabel("Movement speed (nm/s)")
         layout.addWidget(self.stepSizeLabel)
@@ -303,9 +303,9 @@ class PullingProtocolWidget(QWidget):
             self.force_limit_protocol()
         if self.protocol_axis_index < 20:
             # This is to allow for external command of these protocols.
-            lower_lim = self.c_p['protocol_data'][3]*256 + self.c_p['protocol_data'][4]
-            upper_lim = self.c_p['protocol_data'][1]*256 + self.c_p['protocol_data'][2]
-            step_size = self.c_p['protocol_data'][5]*256 + self.c_p['protocol_data'][6]
+            lower_lim = int(self.c_p['protocol_data'][3])*256 + int(self.c_p['protocol_data'][4])
+            upper_lim = int(self.c_p['protocol_data'][1])*256 + int(self.c_p['protocol_data'][2])
+            step_size = int(self.c_p['protocol_data'][5])*256 + int(self.c_p['protocol_data'][6])
 
             self.lowerLimitSpinBox.setValue(lower_lim)
             self.upperLimitSpinBox.setValue(upper_lim)

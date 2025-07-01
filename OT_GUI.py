@@ -38,7 +38,7 @@ from StepperObjective import ObjectiveStepperControllerToolbar
 from MicrofluidicsPumpController import MicrofluidicsControllerWidget, ElvesysMicrofluidicsController, ConfigurePumpWidget
 import AutocontrollerV4 as AutoController # V4 is the latest
 import LaserController
-from ThorlabsScientificCameras import ThorlabsScientificCamera as TSC
+# from ThorlabsScientificCameras import ThorlabsScientificCamera as TSC
 
 class Worker(QThread):
     '''
