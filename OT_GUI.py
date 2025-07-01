@@ -23,8 +23,6 @@ import win32com.client as win32  # This needs to be here for the filmenu to work
 
 from CameraControlsNew import CameraThread, VideoWriterThread, CameraClicks
 from ControlParameters import default_c_p, get_data_dicitonary_new, ControlParametersViewer
-from TemperatureControllerTED4015 import TemperatureThread
-from TemperatureControllerWidget import TempereatureControllerWindow
 from LivePlots import PlotWindow
 from SaveDataWidget import SaveDataWindow
 import MotorControlWidget
@@ -32,9 +30,8 @@ from QWidgetDockContainer import QWidgetWindowDocker
 from LaserPiezosControlWidget import LaserPiezoWidget, MinitweezersLaserMove
 from CameraMeasurementTool import CameraMeasurements
 from DeepLearningThread import DeepLearningControlWidget
-from PlanktonViewWidget import PlanktonViewer
 from DataChannelsInfoWindow import CurrentValueWindow
-from ReadArduinoPortenta import PortentaComms # Import this to be able to open the file explorer.
+# from ReadArduinoPortenta import PortentaComms # Import this to be able to open the file explorer.
 from PortentaMultiprocess import PortentaComms
 from PullingProtocolWidget_2 import PullingProtocolWidget
 from StepperObjective import ObjectiveStepperControllerToolbar
@@ -477,7 +474,6 @@ class MainWindow(QMainWindow):
         except Exception as E:
             print(f"Camera error!\n{E}")
 
-        self.TemperatureThread = None
         self.channelView = None
         self.PortentaReaderT = None
 
@@ -1331,8 +1327,6 @@ class MainWindow(QMainWindow):
         self.c_p['program_running'] = False
         if self.CameraThread is not None:
             self.CameraThread.join()
-        if self.TemperatureThread is not None:
-            self.TemperatureThread.join()
         if self.PortentaReaderT is not None:
             self.PortentaReaderT.join()
         if self.PICReaderT is not None:
