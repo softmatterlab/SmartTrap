@@ -23,3 +23,14 @@ The /Instrument Schematics Schematicsfolder contrains the schematics of the elec
 
 # Supplementary Videos
 The /Supplementary Videos folder contains 5 videos which showcase the capabilites of the SmartTrap system.
+
+# Cite us!
+You can find more information in our paper:
+<https://doi.org/10.48550/arXiv.2505.05290>
+```
+Martin Selin, Antonio Ciarlo, Giuseppe Pesce, Lars Bengtsson, Joan
+Camunas-Soler, Vinoth Sundar Rajan, Fredrik Westerlund, L. Marcus Wil-
+helmsson, Isabel Pastor, Felix Ritort, Steven B. Smith, Carlos Bustamante,
+and Giovanni Volpe. SmartTrap: Automated Precision Experiments with
+Optical Tweezers, May 2025. arXiv:2505.05290 [physics]
+```
