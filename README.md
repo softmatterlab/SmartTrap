@@ -19,17 +19,25 @@ The 3 circuit boards of the controller have separate functions listed below. Thi
 - PCB 2 - Sensor board:
 - PCB 3 - Actuator board:
 
-### Bill of Materials
+The Bill of Materials (BOM) files are in the components folder.
 
 ### Firmware
-The 
-Can be reprogrammed easily using a USB-C cable connection to a host computer. For this we recommend the use of Arduinos IDE which you can find here: <https://www.arduino.cc/en/software/>
+The firmware needed for the controller can be found in the folder fimrware. 
+To flash it to the controller do the following.
+ - Connect the microcontroller to the host computer. For this use a USB-C cable.
+ - Download the folder.
+ - Open the folder in the arduino IDE. Arduinos IDE which you can find here: <https://www.arduino.cc/en/software/>
+ - Under tools select the arduino portenta H7 board and the correct COM port (should show up as Arduino Portenta )
+ - Hit upload in the top left corner.
+Once correctly uploaded and connected to both the controller a green light will be flashing periodically on the arduino.
+
+Also other IDEs such as Visual Studio code are possible to use but require a bit more work to set up.
 
 ### Separate controllers
-Separate controllers are used for some of the components.
-
+Not all the components of the SmartTrap are controlled directly by the electronics controller used for the tweezers instrument. Listed below are the separate controllers are used. All have interfaces in the python GUI which can be used to instead use your own other controllers with minimal changes
 - Laser power control: 
-- Microfluidics: 
+- Microfluidics: Pump and valves used are from the ElveFlow, in particular the OB1 microfluidics pump and the ... valve controller. Links:
+- Micropipette: Uses a ... pump controlled by a separate power supply.
 - Motorized objective movement: This is an optional addition and allows the user to move the objectives from the user interface for adjusting focus. Is an arduino UNO. The program for it can be found in the firmware folder.
 - Pipette puller: 
 
@@ -39,26 +47,30 @@ Separate controllers are used for some of the components.
 — video showing the addition of the electronics (and possibly the unit testing and examples?)
 
 
-
 ### Testing
 
 ## Graphical user interface
 ### Installation
-To install the Graphical user interface (GUI) first download the files. It is recommended to create a separate python environment for the SmartTrap software and to use python 3.10 as well as a computer running Windows 11 and a CUDA ready graphics card.
-The software makes use of several third party packages which are listed in the PackagesNeeded.txt file. The packages needed for YOLO are installed by running the pip install -r requirements.txt command.
+To install the Graphical user interface (GUI) first download the files. It is recommended to use Anaconda (<https://www.anaconda.com/>) to create a separate python environment for the SmartTrap.
+The software is tested with Python 3.13 as well as a computer running Windows 11 and a CUDA ready graphics card.
+Once the environment is 
+- Open a terminal in the desired environment
+- Navigate to the target folder with the downloaded files
+- Run the command: "pip install -r requirements.py" to install the required packages
+  - Optional: Install pytorch with CUDA support, check which <https://pytorch.org/get-started/locally/>
+
+The software needs to know which ... component si connected to which port. To configure this open up the windows device manager.
+Change in the config file and insert the appropriate COM ports to have the software automatically connect to the devices. Note that port numbers can change if for instance the computer is updated, if that happens just update the config file accordingly.
 
 ### Running the software
 Once the installation is complete the program is run from the command prompt with the command:
-
-python OT_GUI.py
+"python main.py" 
+This will start the interface and open it up.
 
 Note this command needs to be run from the folder where the software is placed.
 ### Neural networks
 The weight of the networks needed for the automation are stored in the folder /NeuralNetworks and the weights of a pretrained network are available in the file YOLOV5Weights.pt. 
 Note that other custom trained networks can be loaded directly from the user interface. 
-## Firmware
-The /Firmware folder contains the cCode which runs on the microcontroller (an Aarduino Pportenta).
-To install, download the code and open the project in the Arduino IDE (https://www.arduino.cc/en/software/). Then, once the firmware has been uploaded onto the arduino it will automatically run when turned on. 
 
 ## Schematics
 The /Instrument Schematics Schematicsfolder contrains the schematics of the electronics controller.
