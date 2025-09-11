@@ -1,5 +1,47 @@
 # SmartTrap
 Files needed for the SmartTrap system. The main folder contains all the python the files needed for the user interface and automation. 
+## Hardware
+The SmartTrap system is built on the MiniTweezers system, details of which you can find here: <http://tweezerslab.unipr.it/cgi-bin/home.pl>
+Here we provide lists of the components you need to assemble your own system and some guidlines of how to do so.
+### Components
+
+### Schematics and custom mechanical components.
+
+### Assembly instructions
+
+
+## Electronics
+The custom electronics controller for the optical tweezers system consists of 3 separate PCBs. These are great.
+
+### Electronic board designs
+The 3 circuit boards of the controller have separate functions listed below. This enables users to replace just a single board if need be, e.g. to use a different type of position sensor.
+- PCB 1 - Microcontroller board: Hosts the microcontroller which is an Arduino Portenta H7. This board is connected to both the other boards and the host computer.
+- PCB 2 - Sensor board:
+- PCB 3 - Actuator board:
+
+### Bill of Materials
+
+### Firmware
+The 
+Can be reprogrammed easily using a USB-C cable connection to a host computer. For this we recommend the use of Arduinos IDE which you can find here: <https://www.arduino.cc/en/software/>
+
+### Separate controllers
+Separate controllers are used for some of the components.
+
+- Laser power control: 
+- Microfluidics: 
+- Motorized objective movement: This is an optional addition and allows the user to move the objectives from the user interface for adjusting focus. Is an arduino UNO. The program for it can be found in the firmware folder.
+- Pipette puller: 
+
+### Drivers
+
+### Connecting the controllers
+— video showing the addition of the electronics (and possibly the unit testing and examples?)
+
+
+
+### Testing
+
 ## Graphical user interface
 ### Installation
 To install the Graphical user interface (GUI) first download the files. It is recommended to create a separate python environment for the SmartTrap software and to use python 3.10 as well as a computer running Windows 11 and a CUDA ready graphics card.
