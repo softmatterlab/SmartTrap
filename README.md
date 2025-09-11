@@ -1,5 +1,5 @@
 # SmartTrap system
-Files needed for the SmartTrap system. The main folder contains all the python the files needed for the user interface and automation.
+This GitHub page describes the SmartTrap system, including how to assemble and set up your own system. The main folder contains all the python the files needed for the user interface and automation.
 
 The system is described in our publication: <https://doi.org/10.48550/arXiv.2505.05290>
 ## Hardware
@@ -60,7 +60,7 @@ The drivers each implements a protocol. To replace the driver, create a class im
 - Microfluidics pump
  - OB1 controller from elvesys
 - Microfluidics valves
- - --- from elvesys
+ - from elvesys
 - Pipette pump
  - Sparkfun ... pump which is controlled with a PSU
 
@@ -95,6 +95,11 @@ Note this command needs to be run from the folder where the software is placed.
 ### Using the interface
 The various controls of the instrument are divided into different by different widgets.
 
+#### Testing
+You can run the instrument also without any of the devices connected. To do this follow the instructions start the software with the extra argument -testmode by running the command:
+"python main.py -testmode"
+This will create testdrivers for the different devices which act similarily to the real devices from a software perspective, but are not connected to any physical hardware.
+These testdriverds can also be used to test the functionality of just one or two devices separately from the rest of the system during development.
 
 ### Autonomous control
 There are various autonomous protocols that the instrument can execute.
@@ -104,9 +109,57 @@ You can choose to run entire experiments, such as a single molecule force spectr
 The weight of the networks needed for the automation are stored in the folder /NeuralNetworks and the weights of a pretrained network are available in the file YOLOV5Weights.pt. 
 Note that other custom trained networks can be loaded directly from the user interface. 
 
-## Schematics
-The /Instrument Schematics Schematicsfolder contrains the schematics of the electronics controller.
+# Expanding on the software
+The software provided here is open source and as such you are free to download and modify it to your own needs, but not to sell it commercially.
+
+## Adapting the software to other systems
+The software suit, and in particular the interface and its back end, has been designed with the use in other system and experimental procedures in mind. 
+The different protocols of the various devices simply needs to be implemented.
+
 ## Making a sample chamber
+
+### Items needed
+
+ **Tools**:
+- Laser cutter
+- Hotplate
+- Pipette puller
+- Scalpel
+- Tweezers
+
+**Consumables**:
+- Parafilm
+- Coverglass slides, thickness 1.5 , 60x24 mm
+- Micropipette
+- Channel capillaries
+
+Both the parafilm and the holes in the coverglasses can be cut with a lasercutter.
+
+**Cutting parafilm**
+First prepare the parafilm by cutting it. Place it stretched horisontally on the laser cutter with the paper peeled off. 
+You can for instance use the nescofilm roller from the tweezerlab website <http://tweezerslab.unipr.it/cgi-bin/assemblies.pl/Show?_id=ddd9> for this.
+
+Next cut the pattern into the .
+
+**Drilling in glass slides**
+To make holes in the glass slides you can either use glass drill or a laser cutter.
+The optimal settings will depend on the model of the laser cutter. 
+
+### Assembling a chamber
+To assemble a chamber from the prepared material perform the following steps:
+
+- Use a scalpel to cut two pieces of parafilm free.
+- Gently peel away the parafilm covering the channels using the tweezers.
+- Place the parafilm on top of a glass slides with the holes overlapping as per picture.
+- Next place the micropipette in the center of the chamber and the capillaries next to it, see picture.
+- Place the second sheet of parafilm on top of the first and align it carefully. Be careful not to move the pipette or the capillaries out of place.
+- Place a coverslip without holes on top and align it with the bottom slide.
+- Cut away any excess parafilm
+- Heat the chamber for ca 4 minutes at 110 C on the hotplate with a weight of ca 400g applied.
+ - It is recommended to sandiwich the chamber in two thicker glass slides for more even weight distribution.
+- Remove the chamber and let it cool off.
+
+### Installing a chamber
 
 ## Pipette puller
 When making chambers you need a micropipette. You can make these yourself from glass capillaries using the pipette puller described here. 
