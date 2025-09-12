@@ -183,10 +183,32 @@ To assemble a chamber from the prepared material perform the following steps:
 
 ## Pipette puller
 When making chambers you need a micropipette. You can make these yourself from glass capillaries using the pipette puller described here. 
-The puller consists of a 
 
-- Pipette capillaries:
-- Channel capillaries:
+### Puller assembly
+The puller consists of a metal base with two rods along which the pipette holder can slide.
+A platina wire is heated using resistive heating to 
+
+**Components**
+- Puller base
+ - (Thorlabs ---)
+- Puller legs
+ - (Thorlabs ---)
+- BNC connectors
+ - 
+- Platina wire
+ - ()
+- Screws
+- Programmable power supply
+ - Tenma ... is used by default. Can also use any other powersupply that implements the same python protocol.
+- Springs
+ - Four small springs are used to push the clamps out when removing a pipette. There are no strict requirements on the springs other than that they should fit. The puller will work also without them.
+
+### Using the puller
+To use the pipette puller first mount a glass capillary in it.
+Then start the puller software by navigating to the correct folder and running the command "python pipetet_puller.py". This will open up a small interface from which you can control the power supply and thereby the pipette puller heating.
+The program is run by hitting the run button. This will start the heating. 
+
+The parameters used for the pulling may need to be tuned to optimize the shape of the pipette. In general, the faster the pulling the smaller the pipette opening (and the longer the larger the opening). Increasing the maximum allowed current of the puller will decrease the pulling time.
 
 # Supplementary Videos
 The /Supplementary Videos folder contains 5 videos which showcase the capabilites of the SmartTrap system.
