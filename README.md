@@ -70,33 +70,53 @@ The drivers each implements a protocol. To replace the driver, create a class im
 
 ### Testing
 
-## Graphical user interface
-
+## Main program
+The main program runs on the host computer and is used to steer the different devices.
+It includes a graphical user interface (GUI) and the fully autonomous protocols.
 
 ### Installation
-To install the Graphical user interface (GUI) first download the files. It is recommended to use Anaconda (<https://www.anaconda.com/>) to create a separate python environment for the SmartTrap.
+To install the main program first download the files. It is recommended to use Anaconda (<https://www.anaconda.com/>) to create a separate python environment for the SmartTrap.
 The software is tested with Python 3.13 as well as a computer running Windows 11 and a CUDA ready graphics card.
 Once the environment is 
 - Open a terminal in the desired environment
 - Navigate to the target folder with the downloaded files
 - Run the command: "pip install -r requirements.py" to install the required packages
-  - Optional: Install pytorch with CUDA support, check which <https://pytorch.org/get-started/locally/>
+  - Recommended: Install pytorch with CUDA support,
+   - To install cuda on windows <https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/> 
+   - Installing pythorch <https://pytorch.org/get-started/locally/>
 
 The software needs to know which device is connected to which port. To configure this open up the windows device manager to check the COM ports.
 Then change in the config file and insert the appropriate COM ports to have the software automatically connect to the devices. Note that port numbers can change if for instance the computer is updated, if that happens just update the config file accordingly.
 
 ### Starting the software
 Once the installation is complete the program is run from the command prompt with the command:
-"python main.py" 
-This will start the interface and open it up.
-
-Note this command needs to be run from the folder where the software is placed.
+"python main.py"
+This will start the program and open the graphical user interfaces.
 
 ### Using the interface
-The various controls of the instrument are divided into different by different widgets.
+The various controls of the instrument are divided into different by different widgets. These are essentially small windows. The most central ones are described below.
+
+**The main window**
+The main window contains the camera view as a central component and most of the different widgets are docked in it by default.
+
+From the main window you can open the different widgets and perform various actions.
+
+By selecting the different mouse tools you can use your mouse to directly control the interfaces, by for instance selecting the motors you can click and drag on the screen to move the sample around.
+
+**Protocols widget**
+
+This widget is used to manually specify to the instrument which laser protocol to run. These protocols run on the microcontroller and steers the lasers, for instance moving the optical trap at a fix speed between two different positions.
+
+**Plotting**
+
+To plot and monitor signals, such as the forces, open a plotting window by opening the "windows" drop down menu and selecting "live plotter".
+This will open the default plotting tool which plots the force along the y-axis as function of time. To change which signals are plotted click "plot 1" in the plot window to open the plot options menu. There you can find x-data and y-data. Click these to select which signal to plot on the y-axis and which to plot on the x-axis.
+You can add more separate plots by clicking the "add plot" button.
+
+There are also several plot presets which you can select directly from the windows dropdown menu in the main interfaces. These are; force PSDs, positions PSDs and force-distance X and Y.
 
 #### Testing
-You can run the instrument also without any of the devices connected. To do this follow the instructions start the software with the extra argument -testmode by running the command:
+You can run the interface also without any of the devices connected. To do this follow the instructions to start the software, but add the extra argument -testmode by running the command:
 "python main.py -testmode"
 This will create testdrivers for the different devices which act similarily to the real devices from a software perspective, but are not connected to any physical hardware.
 These testdriverds can also be used to test the functionality of just one or two devices separately from the rest of the system during development.
