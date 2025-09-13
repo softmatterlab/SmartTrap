@@ -75,15 +75,14 @@ The main program runs on the host computer and is used to steer the different de
 It includes a graphical user interface (GUI) and the fully autonomous protocols.
 
 ### Installation
-To install the main program first download the files. It is recommended to use Anaconda (<https://www.anaconda.com/>) to create a separate python environment for the SmartTrap.
-The software is tested with Python 3.13 as well as a computer running Windows 11 and a CUDA ready graphics card.
-Once the environment is 
+To install the main program first download the files in the Software folder of the github. It is recommended to use Anaconda (<https://www.anaconda.com/>) set up a separate python environment for the SmartTrap.
+The software is tested with Python 3.13 as well as a computer running Windows 11 and a CUDA ready graphics card. Older and newer versions of python will likely work if they support the required packages, but have not been extensively tested.
+Once a python environment has been created, do the following to install the required packages. 
 - Open a terminal in the desired environment
 - Navigate to the target folder with the downloaded files
-- Run the command: "pip install -r requirements.py" to install the required packages
+- Run the command: "python install_auto.py" to install the required packages
   - Recommended: Install pytorch with CUDA support,
-   - To install cuda on windows <https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/> 
-   - Installing pythorch <https://pytorch.org/get-started/locally/>
+   - To install cuda on windows <https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/> Install cuda prior to running the install command to automatically install pytorch with cuda support.
 
 The software needs to know which device is connected to which port. To configure this open up the windows device manager to check the COM ports.
 Then change in the config file and insert the appropriate COM ports to have the software automatically connect to the devices. Note that port numbers can change if for instance the computer is updated, if that happens just update the config file accordingly.
@@ -205,7 +204,7 @@ A platina wire is heated using resistive heating to
 
 ### Using the puller
 To use the pipette puller first mount a glass capillary in it.
-Then start the puller software by navigating to the correct folder and running the command "python pipetet_puller.py". This will open up a small interface from which you can control the power supply and thereby the pipette puller heating.
+Then start the puller software by navigating to the correct folder and running the command "python pipette_puller.py". This will open up a small interface from which you can control the power supply and thereby the pipette puller heating.
 The program is run by hitting the run button. This will start the heating. 
 
 The parameters used for the pulling may need to be tuned to optimize the shape of the pipette. In general, the faster the pulling the smaller the pipette opening (and the longer the larger the opening). Increasing the maximum allowed current of the puller will decrease the pulling time.
