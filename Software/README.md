@@ -1,9 +1,2 @@
-# This folder contains all the software needed for the SmartTrap
+# This folder contains all the software needed for running the SmartTrap interface
 
-The software is divided into three parts depending on the uscase.
-
-## Python interface
-
-## Firmware
-
-## Pipette puller
