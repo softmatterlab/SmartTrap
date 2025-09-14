@@ -3,13 +3,14 @@ This GitHub page describes the SmartTrap system, including how to assemble and s
 
 The system is described in our publication: <https://doi.org/10.48550/arXiv.2505.05290>
 ## Hardware
-The SmartTrap system is built on the MiniTweezers system, details of which you can find here: <http://tweezerslab.unipr.it/cgi-bin/home.pl>
+The SmartTrap system is based on the MiniTweezers optical tweezers instrument, details of which you can find here: <http://tweezerslab.unipr.it/cgi-bin/home.pl>
 
 Below we provide lists of the components you need to assemble your own system along with guidlines on assembly and installation of the system.
 ### Components
 The components of the system are split into separate units.
 
 ### Schematics and custom mechanical components.
+
 
 
 ### Assembly instructions
@@ -62,7 +63,7 @@ The drivers each implements a protocol. To replace the driver, create a class im
 - Microfluidics valves
  - from elvesys
 - Pipette pump
- - Sparkfun ... pump which is controlled with a PSU
+ - D2028B from SparkFun Electronics.
 
 ### Connecting the controllers
 — video showing the addition of the electronics (and possibly the unit testing and examples?)
@@ -143,6 +144,7 @@ The different protocols of the various devices simply needs to be implemented.
 - Laser cutter
 - Hotplate
 - Pipette puller
+ - List of components available in the components list
 - Scalpel
 - Tweezers
 
@@ -185,22 +187,8 @@ When making chambers you need a micropipette. You can make these yourself from g
 
 ### Puller assembly
 The puller consists of a metal base with two rods along which the pipette holder can slide.
-A platina wire is heated using resistive heating to 
+A platina wire is heated using resistive heating to heat up the capillary and melt it.
 
-**Components**
-- Puller base
- - (Thorlabs ---)
-- Puller legs
- - (Thorlabs ---)
-- BNC connectors
- - 
-- Platina wire
- - ()
-- Screws
-- Programmable power supply
- - Tenma ... is used by default. Can also use any other powersupply that implements the same python protocol.
-- Springs
- - Four small springs are used to push the clamps out when removing a pipette. There are no strict requirements on the springs other than that they should fit. The puller will work also without them.
 
 ### Using the puller
 To use the pipette puller first mount a glass capillary in it.
