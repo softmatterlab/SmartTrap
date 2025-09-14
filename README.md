@@ -1,7 +1,10 @@
 # SmartTrap system
-This GitHub page describes the SmartTrap system, including how to assemble and set up your own system. The main folder contains all the python the files needed for the user interface and automation.
 
+![Illustration of the SmartTrap system](Images/SystemIllustration.png)
+
+This GitHub page describes the SmartTrap system, including how to assemble and set up your own system.
 The system is described in our publication: <https://doi.org/10.48550/arXiv.2505.05290>
+
 ## Hardware
 The SmartTrap system is based on the MiniTweezers optical tweezers instrument, details of which you can find here: <http://tweezerslab.unipr.it/cgi-bin/home.pl>
 
@@ -11,21 +14,19 @@ The components of the system are split into separate units.
 
 ### Schematics and custom mechanical components.
 
-
-
 ### Assembly instructions
-Instructions of how to assemble the 
+To assemble the instrument ...
 
 ## Electronics
-The optical tweezers instrument is controlled by a custom electronics controller. This controller consists of 3 separate circuit boards (PCBs).
+The optical tweezers instrument is controlled by a custom electronics controller. This controller consists of 3 separate circuit boards (PCBs) which are connected together via ribbon cables.
 
-### Electronic board designs
-The 3 circuit boards of the controller have separate functions listed below. This enables users to replace just a single board if need be, e.g. to use a different type of position sensor.
+### Circuit boards
+The 3 circuit boards of the controller are listed below.
 - PCB 1 - Microcontroller board: Hosts the microcontroller which is an Arduino Portenta H7. This board is connected to both the other boards and the host computer.
 - PCB 2 - Sensor board:
 - PCB 3 - Actuator board:
 
-The Bill of Materials (BOM) files are in the components folder.
+The Bill of Materials (BOM) files are in the components [Go to data folder](Components/) and the schematics of the boards can be found in instrument [Schematics folder](Schematics Folder).
 
 ### Firmware
 The firmware is the program running on the controller, specifically the microcontroller, to steer it. It needs to be installed for the controller to work and it can be found in the folder Fimrware on this github page.
