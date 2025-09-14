@@ -26,35 +26,35 @@ The 3 circuit boards of the controller are listed below.
 - PCB 2 - Sensor board:
 - PCB 3 - Actuator board:
 
-The Bill of Materials (BOM) files are in the components [Go to data folder](Components/) and the schematics of the boards can be found in instrument [Schematics folder](Schematics Folder).
+The Bill of Materials (BOM) files are in the [components folder](Components/) and the schematics of the boards can be found in [Instrument Schematics folder](<Instrument Schematics/>).
 
 ### Firmware
 The firmware is the program running on the controller, specifically the microcontroller, to steer it. It needs to be installed for the controller to work and it can be found in the folder Fimrware on this github page.
 To install (flash) the firmware onto the controller do the following.
 
  - Connect the microcontroller to the host computer. For this use a USB-C cable.
- - Download the folder.
+ - Download the [Firmware folder](Firmware/) .
  - Open the folder in the arduino IDE. Arduinos IDE which you can find here: <https://www.arduino.cc/en/software/>
  - Under tools select the arduino portenta H7 board and the correct COM port (should show up as Arduino Portenta )
- - Hit upload in the top left corner.
+ - Compile and upload the firmware by pressing the upload button in the top left corner of the IDE.
 Once the firmware is correctly uploaded, and the microcontroller is connected to both the controller PCB and the host computer, a green light will be flashing periodically on the microcontroller.
 
-Note: also other IDEs, such as Visual Studio Code, are possible to use but require a bit more work to set up.
+Note: also other IDEs, such as Visual Studio Code, are possible to use but may require a bit more work to set up.
 
 ### Separate controllers
 Not all the components of the SmartTrap are controlled directly by the electronics controller used for the tweezers instrument. Listed below are the separate controllers are used. All have interfaces in the python GUI which can be used to instead use your own other controllers with minimal changes
 - Laser power control: 
-- Microfluidics: Pump and valves used are from the ElveFlow, in particular the OB1 microfluidics pump and the ... valve controller. Links:
-- Micropipette: Uses a ... pump controlled by a separate power supply.
+- Microfluidics: Pump and valves used are from [ElveFlow](<https://elveflow.com/>), in particular the OB1 microfluidics pump and the Mux Wire V3 valve controller. Links:
+- Micropipette: Uses a pump powerd by a dc motor. This is controlled by a separate power supply, TENMA 72-2540, same power supply as the pipette puller use.
 - Motorized objective movement: This is an optional addition and allows the user to move the objectives from the user interface for adjusting focus. Is an arduino UNO. The program for it can be found in the firmware folder.
-- Pipette puller: 
+- Pipette puller: Powered by a TENMA 72-2540 power supply.
 
 ### Drivers
 Each component comes with a python driver class. These drivers are used to communicate between the device and the main program.
-The drivers each implements a protocol. To replace the driver, create a class implementing the corresponding protocol and change the import in the main interface.
+The drivers each implements a python protocol. To replace the driver, create a class implementing the corresponding protocol and change the import in the main interface.
 
 - Camera
- - Two options currently implemented: Thorlabs scientific cameras and Basler cameras
+ - Two options currently implemented: Thorlabs scientific cameras and Basler cameras. Thorlabs cameras require installing [thorlabs SDK](<https://www.thorlabs.com/software_pages/ViewSoftwarePage.cfm?Code=ThorCam>)
 - Optical tweezers instrument
  - Motors
  - Laser movement
@@ -68,9 +68,6 @@ The drivers each implements a protocol. To replace the driver, create a class im
 
 ### Connecting the controllers
 — video showing the addition of the electronics (and possibly the unit testing and examples?)
-
-
-### Testing
 
 ## Main program
 The main program runs on the host computer and is used to steer the different devices.
@@ -116,7 +113,7 @@ You can add more separate plots by clicking the "add plot" button.
 
 There are also several plot presets which you can select directly from the windows dropdown menu in the main interfaces. These are; force PSDs, positions PSDs and force-distance X and Y.
 
-#### Testing
+#### Testing the software
 You can run the interface also without any of the devices connected. To do this follow the instructions to start the software, but add the extra argument -testmode by running the command:
 "python main.py -testmode"
 This will create testdrivers for the different devices which act similarily to the real devices from a software perspective, but are not connected to any physical hardware.
@@ -124,23 +121,23 @@ These testdriverds can also be used to test the functionality of just one or two
 
 ### Autonomous control
 There are various autonomous protocols that the instrument can execute.
-You can choose to run entire experiments, such as a single molecule force spectroscopy, or just 
+You can choose to run entire experiments, such as a single molecule force spectroscopy. Alternatively you can run just one of the subroutines, such as the automatic trapping.
 
 ### Neural networks
 The weight of the networks needed for the automation are stored in the folder /NeuralNetworks and the weights of a pretrained network are available in the file YOLOV5Weights.pt. 
 Note that other custom trained networks can be loaded directly from the user interface. 
 
 # Expanding on the software
-The software provided here is open source and as such you are free to download and modify it to your own needs, but not to sell it commercially.
+The software provided here is open source and as such you are free to download and modify it to your own needs.
 
 ## Adapting the software to other systems
 The software suit, and in particular the interface and its back end, has been designed with the use in other system and experimental procedures in mind. 
 The different protocols of the various devices simply needs to be implemented.
 
 ## Making a sample chamber
+The sample chambers used in the SmartTrap are handmade.
 
 ### Items needed
-
  **Tools**:
 - Laser cutter
 - Hotplate
@@ -155,17 +152,19 @@ The different protocols of the various devices simply needs to be implemented.
 - Micropipette
 - Channel capillaries
 
-Both the parafilm and the holes in the coverglasses can be cut with a lasercutter.
+Note that both the parafilm and the holes in the coverglasses can be cut with a lasercutter.
 
 **Cutting parafilm**
-First prepare the parafilm by cutting it. Place it stretched horisontally on the laser cutter with the paper peeled off. 
+First prepare the parafilm by cutting it with the laser cutter. To do this place it stretched horisontally on the laser cutter with the paper peeled off. 
 You can for instance use the nescofilm roller from the tweezerlab website <http://tweezerslab.unipr.it/cgi-bin/assemblies.pl/Show?_id=ddd9> for this.
 
-Next cut the pattern into the .
+Load the pattern into the laser cutter and position it on the parafilm.
+The settings of the laser cutter will depend on the model used. We use vector engraving at ca 20% of max power.
 
-**Drilling in glass slides**
+**Preparing the holes of the glass slides**
 To make holes in the glass slides you can either use glass drill or a laser cutter.
-The optimal settings will depend on the model of the laser cutter. 
+The optimal settings will again depend on the model of the laser cutter. Recommended is to use multiple repetitions.
+If you instead use a drill carefully check that all the holes are placed in the correct position.
 
 ### Assembling a chamber
 To assemble a chamber from the prepared material perform the following steps:
@@ -182,6 +181,7 @@ To assemble a chamber from the prepared material perform the following steps:
 - Remove the chamber and let it cool off.
 
 ### Installing a chamber
+To install a chamber first take the sample holder from the 
 
 ## Pipette puller
 When making chambers you need a micropipette. You can make these yourself from glass capillaries using the pipette puller described here. 
@@ -190,9 +190,10 @@ When making chambers you need a micropipette. You can make these yourself from g
 The puller consists of a metal base with two rods along which the pipette holder can slide.
 A platina wire is heated using resistive heating to heat up the capillary and melt it.
 
+The components needed and , are listed in the pipette puller components [list](<Components/PipettePuller/PipettePullerComponents.xlsx>).
 
 ### Using the puller
-To use the pipette puller first mount a glass capillary in it.
+To use the pipette puller first mount a glass capillary in it and connect the cables to the power supply (does not matter which cable goes were). 
 Then start the puller software by navigating to the correct folder and running the command "python pipette_puller.py". This will open up a small interface from which you can control the power supply and thereby the pipette puller heating.
 The program is run by hitting the run button. This will start the heating. 
 
