@@ -169,16 +169,37 @@ If you instead use a drill carefully check that all the holes are placed in the 
 ### Assembling a chamber
 To assemble a chamber from the prepared material perform the following steps:
 
-- Use a scalpel to cut two pieces of parafilm free.
-- Gently peel away the parafilm covering the channels using the tweezers.
-- Place the parafilm on top of a glass slides with the holes overlapping as per picture.
-- Next place the micropipette in the center of the chamber and the capillaries next to it, see picture.
-- Place the second sheet of parafilm on top of the first and align it carefully. Be careful not to move the pipette or the capillaries out of place.
-- Place a coverslip without holes on top and align it with the bottom slide.
-- Cut away any excess parafilm
-- Heat the chamber for ca 4 minutes at 110 C on the hotplate with a weight of ca 400g applied.
- - It is recommended to sandiwich the chamber in two thicker glass slides for more even weight distribution.
-- Remove the chamber and let it cool off.
+1. Use a scalpel to cut two pieces of parafilm free.  
+   <img src="Images/peeling_parafilm.jpg" alt="Peeling away excess paraflim" width="50%"/>
+
+2. Gently peel away the parafilm covering the channels using the tweezers.
+
+3. Place the parafilm on top of a glass slide with the holes aligned on both sides as per picture.  
+   <img src="Images/aligning_holes.jpg" alt="aligning holes" width="50%"/>
+
+4. At this point prepare the pipette following these steps:
+   1. Place a single glass capillary centered in the pipette puller.
+   2. Gently tighten the four screws to clamp the pipette tight.  
+      <img src="Images/pipette_mounting.jpg" alt="mounting pipette" width="50%"/>
+   3. Carefully raise the pipette puller to a standing position.
+   4. Toggle the pipette pulling protocol in the pipette puller program. [Watch demo video]("Supplementary Videos/pipette pulling.mp4")
+
+5. Next, place the micropipette in the center of the chamber and the capillaries next to it. Pipette and the capillary openings should be near the central chamber’s center as shown in the picture.  
+   <img src="Images/pipette_and_capillary_placement.jpg" alt="pipette and capillary placed" width="50%"/>
+
+6. Place the second sheet of parafilm on top of the first and align it carefully. Be careful not to move the pipette or the capillaries out of place when doing this.  
+   <img src="Images/second_paraflim.jpg" alt="second parafilm" width="50%"/>
+
+7. Place a coverslip without holes on top and align it with the bottom slide.
+
+8. Cut away any excess parafilm.  
+   <img src="Images/glass_and_excess_removal.jpg" alt="second parafilm" width="50%"/>
+
+9. Heat the chamber for ~4 minutes at 110 °C on the hotplate with a weight of ~400 g applied.
+
+10. It is recommended to sandwich the chamber between two thicker glass slides for more even weight distribution.
+
+11. Remove the chamber and let it cool off.
 
 ### Installing a chamber
 To install a chamber first take the sample holder from the 
