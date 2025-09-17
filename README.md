@@ -182,7 +182,7 @@ To assemble a chamber from the prepared material perform the following steps:
    2. Gently tighten the four screws to clamp the pipette tight.  
       <img src="Images/pipette_mounting.jpg" alt="mounting pipette" width="50%"/>
    3. Carefully raise the pipette puller to a standing position.
-   4. Toggle the pipette pulling protocol in the pipette puller program. [Watch demo video]("Supplementary Videos/pipette pulling.mp4")
+   4. Toggle the pipette pulling protocol in the pipette puller program. [Watch demo video](<Supplementary Videos/pipette pulling.mp4>)
 
 5. Next, place the micropipette in the center of the chamber and the capillaries next to it. Pipette and the capillary openings should be near the central chamber’s center as shown in the picture.  
    <img src="Images/pipette_and_capillary_placement.jpg" alt="pipette and capillary placed" width="50%"/>
