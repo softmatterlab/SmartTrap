@@ -15,7 +15,8 @@ The components of the system are split into separate units.
 ### Schematics and custom mechanical components.
 
 ### Assembly instructions
-To assemble the instrument ...
+To assemble the instrument follow the steps outlined in the video ()
+Detailed instructions are also available on the minitweezers webpage: <http://tweezerslab.unipr.it/cgi-bin/home.pl>
 
 ## Electronics
 The optical tweezers instrument is controlled by a custom electronics controller. This controller consists of 3 separate circuit boards (PCBs) which are connected together via ribbon cables.
@@ -33,7 +34,7 @@ The firmware is the program running on the controller, specifically the microcon
 To install (flash) the firmware onto the controller do the following.
 
  - Connect the microcontroller to the host computer. For this use a USB-C cable.
- - Download the [Firmware folder](Firmware/) .
+ - Download the [Firmware folder](Firmware/).
  - Open the folder in the arduino IDE. Arduinos IDE which you can find here: <https://www.arduino.cc/en/software/>
  - Under tools select the arduino portenta H7 board and the correct COM port (should show up as Arduino Portenta )
  - Compile and upload the firmware by pressing the upload button in the top left corner of the IDE.
@@ -212,6 +213,9 @@ The puller consists of a metal base with two rods along which the pipette holder
 A platina wire is heated using resistive heating to heat up the capillary and melt it.
 
 The components needed and , are listed in the pipette puller components [list](<Components/PipettePuller/PipettePullerComponents.xlsx>).
+
+Assembling the puller is simple.
+
 
 ### Using the puller
 To use the pipette puller first mount a glass capillary in it and connect the cables to the power supply (does not matter which cable goes were). 
