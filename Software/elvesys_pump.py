@@ -17,7 +17,7 @@ from Elveflow64 import *
 import serial
 import time
 import numpy as np
-from microfluidics_controllers import MicrofluidicsController, ValveController, PipettePump, ValveState
+from microfluidics_controllers import MicrofluidicsController, ValveController, PipettePump #, ValveState
 
 from ctypes import c_int32, byref, c_double
 import numpy as np
@@ -40,7 +40,7 @@ class MUXWireValveController(ValveController):
     def is_connected(self) -> bool:
         return self._connected
 
-    def toggle_valve(self, valve_id: str, state: ValveState) -> None:
+    def toggle_valve(self, valve_id: str, state: int) -> None:
         """
         valve_id: "0".."7" (string per ); we coerce to int for the device.
         """
@@ -49,15 +49,12 @@ class MUXWireValveController(ValveController):
         idx = int(valve_id)
         if not (0 <= idx <= 7):
             raise ValueError(f"Valve index out of range: {idx} (expected 0..7)")
-        self._states[idx] = 1 if state is ValveState.OPEN else 0
+        self._states[idx] = state
         self._push_states_to_device()
 
-    def get_valve_states(self) -> dict[str, ValveState]:
+    def get_valve_states(self) -> list[int]:
         # return a mapping as specified by the 
-        return {
-            str(i): (ValveState.OPEN if self._states[i] == 1 else ValveState.CLOSED)
-            for i in range(8)
-        }
+        return self._states
 
     # --- helpers ---
     def _push_states_to_device(self) -> None:
@@ -94,14 +91,16 @@ class ElvesysMicrofluidicsController(MicrofluidicsController):
             raise RuntimeError(f"OB1_Close failed (error={error})")
         self._connected = False
 
-    def set_pressure(self, channel: str, value_kpa: float) -> None:
+    def set_pressure(self, channel: str, value_mpa: float) -> None:
         if not self._connected:
             raise RuntimeError("OB1 not connected")
         ch = c_int32(int(channel))
-        target = c_double(float(value_kpa))
+        if value_mpa < 0.1:
+            value_mpa = 0.1
+        target = c_double(float(value_mpa))
         error = OB1_Set_Press(self.Instr_ID.value, ch, target, byref(self.Calib), 1000)
         if error != 0:
-            raise RuntimeError(f"OB1_Set_Press failed (ch={channel}, kPa={value_kpa}, error={error})")
+            raise RuntimeError(f"OB1_Set_Press failed (ch={channel}, mPa={value_mpa}, error={error})")
 
     def get_pressure(self, channel: str) -> float:
         if not self._connected:
@@ -193,13 +192,13 @@ class PipettePump(PipettePump):
         command = f"VOUT1?\n".encode()
         self.ser.write(command)
         voltage = self.ser.readline().decode().strip()
-        return voltage
+        return float(voltage)
 
     def read_current(self):
         command = f"IOUT1?\n".encode()
         self.ser.write(command)
         current = self.ser.readline().decode().strip()
-        return current
+        return float(current)
 
     def get_status(self):
         from time import sleep

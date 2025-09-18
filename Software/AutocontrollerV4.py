@@ -6,12 +6,14 @@ from PyQt6.QtWidgets import (QComboBox,
 from PyQt6 import  QtGui
 from PyQt6.QtCore import QTimer
 
-from mouse_tool import MouseTool
+from mouse_tool import MouseInterface
 from threading import Thread
 from time import sleep, time
 from queue import PriorityQueue
 import torch
 import torch.nn as nn
+# from yolov5 import YOLOv5
+# from ultralytics import YOLO
 from collections import deque
 
 import cv2
@@ -26,10 +28,10 @@ warnings.filterwarnings(
 
 class StokesTestWidget(QWidget):
 
-    def __init__(self, c_p, motor_controller):
+    def __init__(self, c_p, MotorController):
         super().__init__()
         self.c_p = c_p
-        self.motor_controller = motor_controller
+        self.MotorController = MotorController
         self.stokes_test_step = "startup"
 
         self.init_ui()
@@ -87,9 +89,9 @@ class StokesTestWidget(QWidget):
         self.c_p['stokes_max_move_count'] = int(count)
 
     def get_position(self):
-        x = int(self.motor_controller.get_x_position())
-        y = int(self.motor_controller.get_y_position())
-        z = int(self.motor_controller.get_z_position())
+        x = int(self.MotorController.get_x_position())
+        y = int(self.MotorController.get_y_position())
+        z = int(self.MotorController.get_z_position())
         return [x, y, z]
     
     def calc_distance(self, pos1, pos2):
@@ -116,20 +118,115 @@ class StokesTestWidget(QWidget):
     def set_down_pos(self):
         self.c_p['stokes_down_pos'] = self.get_position()
 
+# A* algorthm can be found at  https://medium.com/@nicholas.w.swift/easy-a-star-pathfinding-7e6689c7f7b2
+# Can also just use this version which is a blend of chatgpt and my own code.
+directions = [(0, 1), (1, 0), (1, 1), (-1, 1),(1, -1),(-1, -1), (0, -1), (-1, 0)]  # Up, Right, Down, Left
 
-def convert_to_uint16(num):
-    if num < 0:
+def convert2uint16(num):
+    if num<0:
         return np.uint16(0)
-    if num > 65535:
+    if num>65535:
         return np.uint16(65535)
     return np.uint16(num)
 
+
+def heuristic(point, end):
+    return abs(point[0] - end[0]) + abs(point[1] - end[1])
+
+
+def a_star(grid, start, end):
+    pq = PriorityQueue()
+    pq.put((0, start))  # The queue stores tuples (priority, point)
+    
+    came_from = {start: None}  # Dictionary to store the path
+    cost_so_far = {start: 0}  # Dictionary to store current cost
+
+    # Check if target is outside of grid, if so set it to the grid edges instead
+    s = grid.shape
+    if end[0] >= s[0]:
+        end = (s[0]-1,end[1])
+    if end[1] >= s[1]:
+        end = (end[0],s[1]-1)
+    if end[0] < 0:
+        end = (0,end[1])
+    if end[1] < 0:
+        end = (end[0],0)
+
+    while not pq.empty():
+        _, current = pq.get()
+        
+        if current == end:
+            break
+        
+        for direction in directions:
+            next_cell = (current[0] + direction[0], current[1] + direction[1])
+            
+            if (0 <= next_cell[0] < len(grid) and 0 <= next_cell[1] < len(grid[0]) and grid[next_cell[0]][next_cell[1]]):
+                new_cost = cost_so_far[current] + 1
+                
+                if next_cell not in cost_so_far or new_cost < cost_so_far[next_cell]:
+                    cost_so_far[next_cell] = new_cost
+                    priority = new_cost + heuristic(next_cell, end)
+                    pq.put((priority, next_cell))
+                    came_from[next_cell] = current
+    
+    # Build the path from end to start
+    path = []
+    current = end
+    while current is not None:
+        path.append(current)
+        try:
+            current = came_from[current]
+        except KeyError as ke:
+            return None
+    path.reverse()
+    
+    return path
+
+def generate_move_map(size, width, height, positions, radii,rect=None, start_pos=None):
+    y_size = int(size * height/width)
+    area = np.ones((size,y_size))
+    # Convert from pixel to grid size
+    # norm_positions = positions/width * size
+    # radii = radii / width * size 
+    for pos in positions:
+        x = pos[0]/width * size
+        y = pos[1]/height * y_size
+        x_min = max(int(x - radii), 0)
+        x_max = min(int(x + radii + 1.5), size)
+        y_min = max(int(y - radii), 0)
+        y_max = min(int(y + radii + 1.5), y_size)
+        
+        area[x_min:x_max, y_min:y_max] = 0
+
+    if rect is not None:
+        area[rect[0]:rect[2], rect[1]:rect[3]] = 0
+    return area
+
+def simplify_path(path):
+    """ Simplifies a given path by removing unnecessary points """
+    simplified_path = [path[0]]
+
+    for i in range(1, len(path)-1):
+        dx1 = path[i][0] - path[i-1][0]
+        dy1 = path[i][1] - path[i-1][1]
+        dx2 = path[i+1][0] - path[i][0]
+        dy2 = path[i+1][1] - path[i][1]
+
+        # If the direction changed, add this point
+        if dx1 != dx2 or dy1 != dy2:
+            simplified_path.append(path[i])
+
+    simplified_path.append(path[-1])  # Always add the last point
+
+    return simplified_path
+
 class AutoControlWidget(QWidget):
-    def __init__(self, c_p, data_channels, motor_controller):
+    def __init__(self, c_p, data_channels, MotorController):
         super().__init__()
         self.c_p = c_p
         self.data_channels = data_channels
-        self.motor_controller = motor_controller
+        self.MotorController = MotorController
         self.init_ui()
 
         # Initiate a timer to alert the user in case one of the protocols finishes.
@@ -163,12 +260,10 @@ class AutoControlWidget(QWidget):
         self.setLayout(layout)
 
     def create_toggle_buttons(self, layout):
-        self.toggle_centering_button = self.create_toggle_button(
-            'Centering on', self.center_particle, self.c_p['centering_on'])
+        self.toggle_centering_button = self.create_toggle_button('Centering on', self.center_particle, self.c_p['centering_on'])
         layout.addWidget(self.toggle_centering_button)
 
-        self.toggle_trap_button = self.create_toggle_button(
-            'Trap particle', self.trap_particle, self.c_p['trap_particle'])
+        self.toggle_trap_button = self.create_toggle_button('Trap particle', self.trap_particle, self.c_p['trap_particle'])
         layout.addWidget(self.toggle_trap_button)
 
     def center_particle(self):
@@ -181,6 +276,9 @@ class AutoControlWidget(QWidget):
     def trap_particle(self):
         self.c_p['trap_particle'] = not self.c_p['trap_particle']
     
+    # def move_while_avoiding(self):
+    #     self.c_p['move_avoiding_particles'] = not self.c_p['move_avoiding_particles']
+
     def electrostatic_align(self):
         self.c_p['electrostatic_experiment_alignment'] = not self.c_p['electrostatic_experiment_alignment']
 
@@ -219,7 +317,7 @@ class AutoControlWidget(QWidget):
         self.c_p['move_particle2pipette'] = not self.move_particle2pipette_button.isChecked()
 
     def move2area_above(self):
-        self.c_p['move_to_pipette_tip'] = not self.move2area_above_button.isChecked()
+        self.c_p['move2area_above_pipette'] = not self.move2area_above_button.isChecked()
 
     def suck_into_pipette(self):
         self.c_p['suck_into_pipette'] = not self.suck_into_pipette_button.isChecked()
@@ -237,8 +335,7 @@ class AutoControlWidget(QWidget):
             self.c_p['calibration_start'] = True
 
     def load_auto_calibration(self):
-        calibration_file_path = QFileDialog.getOpenFileName(
-            self, "Load Auto Calibration", "", "Calibration Files (*.npy)")[0]
+        calibration_file_path = QFileDialog.getOpenFileName(self, "Load Auto Calibration", "", "Calibration Files (*.npy)")[0]
         if calibration_file_path:
             try:
                 calibration = np.load(calibration_file_path, allow_pickle=True)
@@ -246,22 +343,10 @@ class AutoControlWidget(QWidget):
                     self.c_p['calibration_points'] = calibration
                     print("Auto calibration loaded successfully.")
                     self.c_p['calibration_performed'] = True
-                    self.APX_coeffs = self.calculate_polynomial_coefficients(
-                        self.c_p['calibration_points'][:,:,2],
-                        self.c_p['calibration_points'][:,:,3],
-                        self.c_p['calibration_points'][:,:,0])
-                    self.APY_coeffs = self.calculate_polynomial_coefficients(
-                        self.c_p['calibration_points'][:,:,2],
-                        self.c_p['calibration_points'][:,:,3],
-                        self.c_p['calibration_points'][:,:,1])
-                    self.BPX_coeffs = self.calculate_polynomial_coefficients(
-                        self.c_p['calibration_points'][:,:,4],
-                        self.c_p['calibration_points'][:,:,5],
-                        self.c_p['calibration_points'][:,:,0])
-                    self.BPY_coeffs = self.calculate_polynomial_coefficients(
-                        self.c_p['calibration_points'][:,:,4],
-                        self.c_p['calibration_points'][:,:,5],
-                        self.c_p['calibration_points'][:,:,1])
+                    self.APX_coeffs = self.calculate_polynomial_coefficients(self.c_p['calibration_points'][:,:,2],self.c_p['calibration_points'][:,:,3], self.c_p['calibration_points'][:,:,0])
+                    self.APY_coeffs = self.calculate_polynomial_coefficients(self.c_p['calibration_points'][:,:,2],self.c_p['calibration_points'][:,:,3], self.c_p['calibration_points'][:,:,1])
+                    self.BPX_coeffs = self.calculate_polynomial_coefficients(self.c_p['calibration_points'][:,:,4],self.c_p['calibration_points'][:,:,5], self.c_p['calibration_points'][:,:,0])
+                    self.BPY_coeffs = self.calculate_polynomial_coefficients(self.c_p['calibration_points'][:,:,4],self.c_p['calibration_points'][:,:,5], self.c_p['calibration_points'][:,:,1])
                 else:
                     print("Calibration file shape does not match current calibration points.")
             except Exception as e:
@@ -270,9 +355,7 @@ class AutoControlWidget(QWidget):
     def create_search_and_trap_section(self, layout):
         search_and_trap_layout = QHBoxLayout()
 
-        self.search_and_trap_button = self.create_toggle_button('Search and trap',
-                                                                self.search_and_trap,
-                                                                self.c_p['search_and_trap'])
+        self.search_and_trap_button = self.create_toggle_button('Search and trap', self.search_and_trap, self.c_p['search_and_trap'])
         search_and_trap_layout.addWidget(self.search_and_trap_button)
 
         self.capillary_selection = QComboBox()
@@ -284,14 +367,10 @@ class AutoControlWidget(QWidget):
         layout.addLayout(search_and_trap_layout)
 
     def create_capillary_controls(self, layout):
-        capillary_1_layout = self.create_capillary_section('Capillary 1',
-                                                           self.set_capillary_1_position,
-                                                           self.goto_capillary_1)
+        capillary_1_layout = self.create_capillary_section('Capillary 1', self.set_capillary_1_position, self.goto_capillary_1)
         layout.addLayout(capillary_1_layout)
 
-        capillary_2_layout = self.create_capillary_section('Capillary 2',
-                                                           self.set_capillary_2_position,
-                                                           self.goto_capillary_2)
+        capillary_2_layout = self.create_capillary_section('Capillary 2', self.set_capillary_2_position, self.goto_capillary_2)
         layout.addLayout(capillary_2_layout)
 
     def create_pipette_controls(self, layout):
@@ -299,8 +378,7 @@ class AutoControlWidget(QWidget):
 
         self.set_pipette_position_button = QPushButton('Set pipette position')
         self.set_pipette_position_button.pressed.connect(self.set_pipette_position)
-        self.set_pipette_position_button.setToolTip("""Sets the approximate location of the 
-                                                    pipette to the current motor position.""")
+        self.set_pipette_position_button.setToolTip("Sets the approximate location of the pipette to the current motor position.")
         pipette_layout.addWidget(self.set_pipette_position_button)
 
         self.set_go2pipette_button = QPushButton('Go to pipette')
@@ -317,59 +395,38 @@ class AutoControlWidget(QWidget):
         layout.addLayout(pipette_layout)
 
     def create_focus_and_movement_controls(self, layout):
-        self.z_focus_button = self.create_toggle_button('Toggle z focus',
-                                                        self.toggle_z_focus_pipette_trapped,
-                                                        self.c_p['focus_z_trap_pipette'])
+        self.z_focus_button = self.create_toggle_button('Toggle z focus', self.toggle_z_focus_pipette_trapped, self.c_p['focus_z_trap_pipette'])
         layout.addWidget(self.z_focus_button)
 
-        self.pipette_focus_button = self.create_toggle_button('Toggle pipette focus',
-                                                              self.toggle_pipette_focus,
-                                                              self.c_p['focus_pipette'])
+        self.pipette_focus_button = self.create_toggle_button('Toggle pipette focus', self.toggle_pipette_focus, self.c_p['focus_pipette'])
         layout.addWidget(self.pipette_focus_button)
 
-        self.move2area_above_button = self.create_toggle_button('Move to area above pipette',
-                                                                self.move2area_above,
-                                                                self.c_p['move_to_pipette_tip'])
+        self.move2area_above_button = self.create_toggle_button('Move to area above pipette', self.move2area_above, self.c_p['move2area_above_pipette'])
         layout.addWidget(self.move2area_above_button)
 
-        self.move_particle2pipette_button = self.create_toggle_button(
-            'Move particle to pipette',
-            self.move2pipette_tip,
-            self.c_p['move_particle2pipette'])
+        self.move_particle2pipette_button = self.create_toggle_button('Move particle to pipette', self.move2pipette_tip, self.c_p['move_particle2pipette'])
         layout.addWidget(self.move_particle2pipette_button)
 
-        self.suck_into_pipette_button = self.create_toggle_button('Suck into pipette',
-                                                                  self.suck_into_pipette,
-                                                                  self.c_p['suck_into_pipette'])
+        self.suck_into_pipette_button = self.create_toggle_button('Suck into pipette', self.suck_into_pipette, self.c_p['suck_into_pipette'])
         layout.addWidget(self.suck_into_pipette_button)
 
-        self.move_piezo_2_saved_positions_button = self.create_toggle_button(
-            'Move piezo to zero positions',
-            self.move_piezo_2_saved_positions,
-            self.c_p['move_piezo_2_target'])
+        self.move_piezo_2_saved_positions_button = self.create_toggle_button('Move piezo to zero positions', self.move_piezo_2_saved_positions, self.c_p['move_piezo_2_target'])
         layout.addWidget(self.move_piezo_2_saved_positions_button)
 
-        self.touch_particles_button = self.create_toggle_button('Touch particles',
-                                                                self.touch_particles,
-                                                                self.c_p['touch_particles'])
+        self.touch_particles_button = self.create_toggle_button('Touch particles', self.touch_particles, self.c_p['touch_particles'])
         layout.addWidget(self.touch_particles_button)
 
-        self.stretch_molecule_button = self.create_toggle_button('Stretch molecule',
-                                                                 self.stretch_molecule,
-                                                                 self.c_p['stretch_molecule'])
+        self.stretch_molecule_button = self.create_toggle_button('Stretch molecule', self.stretch_molecule, self.c_p['stretch_molecule'])
         layout.addWidget(self.stretch_molecule_button)
 
     def create_autonomous_experiment_controls(self, layout):
-        self.autonomous_button = self.create_toggle_button('Autonomous experiment',
-                                                           self.toggle_autonomous_experiment,
-                                                           self.c_p['autonomous_experiment'])
+        self.autonomous_button = self.create_toggle_button('Autonomous experiment', self.toggle_autonomous_experiment, self.c_p['autonomous_experiment'])
         layout.addWidget(self.autonomous_button)
 
         self.autonomous_experiment_type_box = QComboBox()
         self.autonomous_experiment_type_box.addItems(self.c_p['autonomous_experiment_types'])
         self.autonomous_experiment_type_box.setCurrentIndex(0)
-        self.autonomous_experiment_type_box.currentIndexChanged.connect(
-                self.autonomous_experiment_type_changed)
+        self.autonomous_experiment_type_box.currentIndexChanged.connect(self.autonomous_experiment_type_changed)
         layout.addWidget(self.autonomous_experiment_type_box)
 
         self.autonomous_experiment_stage_box = QComboBox()
@@ -386,18 +443,13 @@ class AutoControlWidget(QWidget):
 
         self.load_calibration_button = QPushButton('Load position calibration')
         self.load_calibration_button.pressed.connect(self.load_auto_calibration)
-        self.load_calibration_button.setToolTip("""Loads the auto calibration file.\n
-                                                Needs to be the same shape as current calibration""")
+        self.load_calibration_button.setToolTip("Loads the auto calibration file. Needs to be the same shape as current calibration")
         layout.addWidget(self.load_calibration_button)
 
-        self.electrostatic_align_button = self.create_toggle_button('Electrostatic align',
-                                                                    self.electrostatic_align,
-                                                                    self.c_p['electrostatic_experiment_alignment'])
+        self.electrostatic_align_button = self.create_toggle_button('Electrostatic align', self.electrostatic_align, self.c_p['electrostatic_experiment_alignment'])
         layout.addWidget(self.electrostatic_align_button)
 
-        self.electrostic_auto_exp_button = self.create_toggle_button('Electrostatic auto experiment',
-                                                                     self.electrostic_auto_exp,
-                                                                     self.c_p['electrostatic_auto_experiment'])
+        self.electrostic_auto_exp_button = self.create_toggle_button('Electrostatic auto experiment', self.electrostic_auto_exp, self.c_p['electrostatic_auto_experiment'])
         layout.addWidget(self.electrostic_auto_exp_button)
 
     def create_toggle_button(self, text, slot_function, initial_state):
@@ -425,7 +477,7 @@ class AutoControlWidget(QWidget):
     def refresh(self):
         self.z_focus_button.setChecked(self.c_p['focus_z_trap_pipette'])
         self.pipette_focus_button.setChecked(self.c_p['focus_pipette'])
-        self.move2area_above_button.setChecked(self.c_p['move_to_pipette_tip'])
+        self.move2area_above_button.setChecked(self.c_p['move2area_above_pipette'])
         self.move_particle2pipette_button.setChecked(self.c_p['move_particle2pipette'])
         self.toggle_centering_button.setChecked(self.c_p['centering_on'])
         self.toggle_trap_button.setChecked(self.c_p['trap_particle'])
@@ -453,19 +505,19 @@ class AutoControlWidget(QWidget):
         self.set_position('pipette_location_chamber')
 
     def set_position(self, key):
-        x = int(self.motor_controller.get_x_position())
-        y = int(self.motor_controller.get_y_position())
-        z = int(self.motor_controller.get_z_position())
+        x = int(self.MotorController.get_x_position())
+        y = int(self.MotorController.get_y_position())
+        z = int(self.MotorController.get_z_position())
         self.c_p[key] = [x, y, z]
 
     def goto_capillary_1(self):
-        self.motor_controller.move_to_location(self.c_p['capillary_1_position'])
+        self.MotorController.move_to_location(self.c_p['capillary_1_position'])
 
     def goto_capillary_2(self):
-        self.motor_controller.move_to_location(self.c_p['capillary_2_position'])
+        self.MotorController.move_to_location(self.c_p['capillary_2_position'])
 
     def goto_pipette(self):
-        self.motor_controller.move_to_location(self.c_p['pipette_location_chamber'])
+        self.MotorController.move_to_location(self.c_p['pipette_location_chamber'])
 
     def capillary_selection_changed(self):
         self.c_p['particle_type'] = self.capillary_selection.currentIndex() + 1
@@ -494,12 +546,11 @@ class AutoControlWidget(QWidget):
             
             self.c_p['move_to_location'] = False
 
-class SelectLaserPosition(MouseTool):
+class SelectLaserPosition(MouseInterface):
     """
     Used for determining the position of the laser in the image.
 
-    Left click for selecting position of laser A and right click for selecting the position 
-    of laser B.
+    Left click for selecting position of laser A and right click for selecting the position of laser B
     """
     def __init__(self, c_p):
         self.c_p = c_p
@@ -509,30 +560,24 @@ class SelectLaserPosition(MouseTool):
     def draw(self, qp):
         qp.setPen(self.pen)
         r = 10
-        x = int((self.c_p['laser_position_A_predicted'][0] - self.c_p['AOI'][0])
-                 / self.c_p['image_scale'] - r/2)
-        y = int((self.c_p['laser_position_A_predicted'][1] - self.c_p['AOI'][2])
-                / self.c_p['image_scale'] - r/2)
+        x = int((self.c_p['laser_position_A_predicted'][0] - self.c_p['AOI'][0]) / self.c_p['image_scale'] - r/2)
+        y = int((self.c_p['laser_position_A_predicted'][1] - self.c_p['AOI'][2]) / self.c_p['image_scale'] - r/2)
         qp.drawEllipse(x,y, r, r)
 
         qp.setPen(self.pen2)
-        x = int((self.c_p['laser_position_B_predicted'][0] - self.c_p['AOI'][0])
-                / self.c_p['image_scale'] - r/2)
-        y = int((self.c_p['laser_position_B_predicted'][1] - self.c_p['AOI'][2])
-                / self.c_p['image_scale'] - r/2)
+        x = int((self.c_p['laser_position_B_predicted'][0] - self.c_p['AOI'][0]) / self.c_p['image_scale'] - r/2)
+        y = int((self.c_p['laser_position_B_predicted'][1] - self.c_p['AOI'][2]) / self.c_p['image_scale'] - r/2)
         qp.drawEllipse(x,y, r, r)
 
     def mousePress(self):
         
         if self.c_p['mouse_params'][0] == 1:
-            self.c_p['laser_position_A'] = np.array(
-                self.c_p['mouse_params'][1:3]) * self.c_p['image_scale']
+            self.c_p['laser_position_A'] = np.array(self.c_p['mouse_params'][1:3])*self.c_p['image_scale']
             self.c_p['laser_position_A'][0] += self.c_p['AOI'][0]
             self.c_p['laser_position_A'][1] += self.c_p['AOI'][2]
             print("Laser A position set to: ", self.c_p['laser_position_A'])
         elif self.c_p['mouse_params'][0] == 2:
-            self.c_p['laser_position_B'] = np.array(
-                self.c_p['mouse_params'][1:3]) * self.c_p['image_scale']
+            self.c_p['laser_position_B'] = np.array(self.c_p['mouse_params'][1:3])*self.c_p['image_scale']
             self.c_p['laser_position_B'][0] += self.c_p['AOI'][0]
             self.c_p['laser_position_B'][1] += self.c_p['AOI'][2]
             print("Laser B position set to: ", self.c_p['laser_position_A'])
@@ -546,28 +591,26 @@ class SelectLaserPosition(MouseTool):
     def getToolName(self):
         return "Laser position"
     def getToolTip(self):
-        return """Click on the screen where the laser is located\n Used to tell the auto controll 
-        functions where to expect particles to be trappable."""
+        return "Click on the screen where the laser is located\n Used to tell the auto controll functions where to expect particles to be trappable."
 
-class AutoControllerThread(Thread):
+class autoControllerThread(Thread):
     """
-    Thread for running the auto controller in the background. Also handles the deep learning
-    analysis.
+    New and updated version of the autoControllerThraed. The most important change is that now the deep-learning thread is implemented
+    in the autoControllerThread. This is done to simplify synchronization between the different threads.
     """
-    def __init__(self, c_p, data_channels, object_tracker, motor_controller,main_window, data_saver):
+    def __init__(self, c_p, data_channels, ObjectTracker, MotorController, main_window=None):
         super().__init__()
 
         self.c_p = c_p
-        # self.setDaemon(True)
+        self.setDaemon(True)
         self.particles_in_view = False
         self.data_channels = data_channels
-        self.object_tracker = object_tracker
-        self.motor_controller = motor_controller
+        self.ObjectTracker = ObjectTracker
+        self.MotorController = MotorController
         self.search_direction = 1 
         self.y_lim_pos = 1 # search limits
         self.x_lim_pos = 0.1
         self.main_window = main_window
-        self.data_saver = data_saver
 
         self.AOI0 = self.c_p['AOI'][0]
         self.AOI1 = self.c_p['AOI'][1]
@@ -576,10 +619,8 @@ class AutoControllerThread(Thread):
 
         # DNA attachment parameters
         self.DNA_move_direction = 0
-        # Number of bits we need to change the piezo dac to move 1 micron, approximate
-        self.bits_per_pixel = 500 / self.c_p['microns_per_pix']
-        # approximate particle-particle-distance at which we should see a force ramp in the DNA
-        self.DNA_length_pix = 160  
+        self.bits_per_pixel = 500 / self.c_p['microns_per_pix'] # Number of bits we need to change the piezo dac to move 1 micron, approximate
+        self.DNA_length_pix = 160  # approximate particle-particle-distance at which we should see a force ramp in the DNA
         self.closest_distance = 70
         self.sleep_counter = 0
         self.force_limit = 30
@@ -589,7 +630,7 @@ class AutoControllerThread(Thread):
         # pipette-z focus parameters
         self.sharpnesses_mapped = False
   
-        self.touch_counter_limit = 15 # should be 20
+        self.touch_counter_limit = 10 # should be 20
         self.pipette_view_counter = 0 # Counts how many frames the pipette has been out of view.
         self.z_move_counter = 0
         
@@ -601,11 +642,8 @@ class AutoControllerThread(Thread):
         self.calibration_timer = 0
         self.calibration_x = 0
         self.calibration_y = 0
-        # How long to wait after moving the piezos before taking recording the data.
-        self.calibration_wait_time = 1        
-        # Direction of next x-step, moves back and forth, "forwards" or "backwards"
-        self.calibration_dir = "forwards"
-        
+        self.calibration_wait_time = 1 # How long to wait after moving the piezos before taking recording the data.
+        self.calibration_dir = "forwards" # Direction of next x-step, moves back and forth, "forwards" or "backwards"
         self.grid_step = int(60_000 / self.c_p['grid_size'])
         self.APX_coeffs = None
         self.APY_coeffs = None
@@ -613,20 +651,19 @@ class AutoControllerThread(Thread):
         self.BPY_coeffs = None
         self.PSD_A_P_sum = 10_000
         self.PSD_B_P_sum = 10_000
-        # Used to terminate the autocalibration if no particles are found in the image for a while.
-        self.calibration_particles_counter = 0
+        self.calibration_particles_counter = 0 # Used to terminate the autocalibration if no particles are found in the image for a while.
 
         # Stokes test parameters
         self.move_counter = 0
 
-        self.moving_down = True # Used to determine if we are moving up/down when touching particles
+        self.moving_down = True # Used to determine if we are moving up or down when touching particles,
         self.protocol_started = False
         self.limits_found = [False, False]
-        self.moving_to_trap = False
+        self.moving2trap = False
         self.offset_y = 140 # Offset in pixels when moving to area above pipette
         self.zoomed_in = False
 
-        # Red blood cells experiments parameters and variables
+        # RBC parameters and variables
         self.RBC_timer = 0
         self.RBC_timeout = 5
         self.RBC_protocol_started = False
@@ -635,6 +672,7 @@ class AutoControllerThread(Thread):
         """
         Check if there are multiple particles trapped in the pipette.
         """
+        #print("CheckingMultipleTrapped")
         # This is too sensitive when pushing together.
         if not self.c_p['particle_trapped'] or not self.c_p['tracking_on']:
             self.c_p['multiple_particles_trapped'] = False
@@ -644,25 +682,20 @@ class AutoControllerThread(Thread):
             self.c_p['multiple_particles_trapped'] = False
             return
         # Had an issue with false multi trapped detection when molecules were broken
-        fx = (self.data_channels['F_total_X'].data[self.data_channels['F_total_X'].index-15_000]
-              + self.data_channels['F_total_X'].get_data(1)[0])
-        fy = (self.data_channels['F_total_Y'].data[self.data_channels['F_total_Y'].index-15_000]
-              + self.data_channels['F_total_Y'].get_data(1)[0])
-
+        fx = self.data_channels['F_total_X'].data[self.data_channels['F_total_X'].index-15_000] + self.data_channels['F_total_X'].get_data(1)[0]
+        fy = self.data_channels['F_total_Y'].data[self.data_channels['F_total_Y'].index-15_000] + self.data_channels['F_total_Y'].get_data(1)[0]
+        #xy_force = np.mean(self.data_channels['F_total_X'].get_data(100)[0])**2 + np.mean(self.data_channels['F_total_Y'].get_data(100))**2
         xy_force = (fx/2)**2 + (fy/2)**2
         if xy_force > 50: # If there is a large force then this may cause a deviation in z
             self.c_p['multiple_particles_trapped'] = False
             return
         
         # Had some trouble with this when the two particles were touching. This has hopefully fixed that.
-        distance_trapped_pipette_particle = np.linalg.norm(np.array(
-            self.c_p['pipette_particle_location'][0:2])
-            - np.array(self.c_p['Trapped_particle_position'][0:2]))
-
-        if distance_trapped_pipette_particle*self.c_p['microns_per_pix'] < 4:
+        distance_trapped_pipette_particle = np.linalg.norm(np.array(self.c_p['pipette_particle_location'][0:2]) - np.array(self.c_p['Trapped_particle_position'][0:2])) 
+        if distance_trapped_pipette_particle*self.c_p['microns_per_pix'] <4:
             self.c_p['multiple_particles_trapped'] = False
             return
-        if self.motor_controller.is_moving():
+        if self.MotorController.is_moving():
             return False
         
         z_predictions = self.data_channels['trapped_particle_z_position'].get_data(10)
@@ -671,8 +704,7 @@ class AutoControllerThread(Thread):
 
     def compute_gradient_sharpness(self):
         """
-        Computes the sharpness of the gradient within a specified region of interest (ROI) in the
-        image.
+        Computes the sharpness of the gradient within a specified region of interest (ROI) in the image.
 
         Returns:
             sharpness (float): The mean gradient magnitude within the ROI.
@@ -721,8 +753,7 @@ class AutoControllerThread(Thread):
         self.c_p['Trapped_particle_position'][0:2], idx = self.find_closest_particle([LX, LY],True)
         self.c_p['Trapped_particle_position'][3] = self.c_p['predicted_particle_radii'][idx]
 
-        # Check if we can get also the z-position, different units tough.
-        # Set to None if no z-position found.
+        # Check if we can get also the z-position, different units tough. Set to None if no z-position found.
         if self.c_p['z-tracking']:
             try:
                 self.c_p['Trapped_particle_position'][2] = self.c_p['z-predictions'][idx]
@@ -731,15 +762,13 @@ class AutoControllerThread(Thread):
         else:
             self.c_p['Trapped_particle_position'][2] = None
 
-        trap_dist = ((self.c_p['Trapped_particle_position'][0]-LX)**2
-                     + (self.c_p['Trapped_particle_position'][1]-LY)**2)
+        trap_dist = (self.c_p['Trapped_particle_position'][0]-LX)**2 + (self.c_p['Trapped_particle_position'][1]-LY)**2
         self.c_p['particle_trapped'] = trap_dist < threshold
         return idx
 
     
-    def check_in_pipette(self, threshold=3_000, offset=np.array([0, 0]), trapped_idx=None):
-        if (not self.c_p['pipette_located'] or not self.c_p['tracking_on']
-            or self.c_p['pipette_location'] is None):
+    def check_in_pipette(self, threshold=3_000, offset=np.array([0, 0]), trapped_idx=None): # Increased the threshold from 2_000 to 3_000
+        if not self.c_p['pipette_located'] or not self.c_p['tracking_on'] or self.c_p['pipette_location'] is None:
             self.data_channels['particle_in_pipette'].put_data(0)
             return
         try:
@@ -755,8 +784,7 @@ class AutoControllerThread(Thread):
         
         # Use particle redii to determine position, check that it has not been updated erroneously.        
         radii = self.data_channels['pipette_particle_radii'].get_data(1)[0]
-        if ((self.c_p['pipette_tip_location'][0] - potential_pos[0])**2/4 + 
-            ((self.c_p['pipette_tip_location'][1]-radii) - potential_pos[1])**2 < threshold):
+        if (self.c_p['pipette_tip_location'][0] - potential_pos[0])**2/4 + ((self.c_p['pipette_tip_location'][1]-radii) - potential_pos[1])**2 < threshold:
             self.c_p['particle_in_pipette'] = True
             self.data_channels['particle_in_pipette'].put_data(2)
             self.c_p['pipette_particle_location'][0:2] = potential_pos
@@ -776,26 +804,115 @@ class AutoControllerThread(Thread):
 
             self.c_p['particle_in_pipette'] = False
 
-    # Test if this is actually needed or not
-    # def center_particle(self, center, move_limit=10):
-    #     # Find particle closest to the center
+    # def move_while_avoiding_particlesV2(self, target_position):
+    #     """
+    #     Function that moves the stage while avoiding double trapping particles. 
+    #     """
 
-    #     center_particle = self.find_closest_particle(center, False)
-    #     if center_particle is None:
+    #     if not self.data_channels['particle_trapped'].get_data(1)[0]:
+    #         # No particle trapped so no point in avoiding particles.
+    #         print("No particle trapped so no point in avoiding particles.")
+    #         return True
+    #     # Calculate the distance to the target position
+    #     x0 = self.data_channels['Motor_x_pos'].get_data(1)[0]
+    #     y0 = self.data_channels['Motor_y_pos'].get_data(1)[0]
+    #     dx = target_position[0] - x0
+    #     dy = target_position[1] - y0
+
+    #     move_lim = 100 # Max movemement per "step" if no particles are in view
+
+    #     if dx**2+dy**2 < 200:
+    #         return True
+
+    #     if len( self.c_p['predicted_particle_positions']) == 1 and not self.c_p['pipette_located']:
+    #         # Only one particle in view (and no structures) so no point in avoiding particles.
+    #         if dx < -move_lim:
+    #             dx =- move_lim
+    #         elif dx > move_lim:
+    #             dx = move_lim
+    #         if dy < -move_lim:
+    #             dy =- move_lim
+    #         elif dy > move_lim:
+    #             dy = move_lim
+    #         self.c_p['minitweezers_target_pos'][0] = int(x0 + dx)
+    #         self.c_p['minitweezers_target_pos'][1] = int(y0 + dy)
+    #         print("Updating target position to ", self.c_p['minitweezers_target_pos'])
+    #         self.c_p['move_to_location'] = True
     #         return
 
-    #     # Calculate the distance to move the stage
-    #     dx = center[1] - center_particle[0]
-    #     dy = center[0] - center_particle[1]
-    #     if np.abs(dx)<move_limit and np.abs(dy)<move_limit:
-    #         print(f"Limits {dx} {dy}")
-    #         return
-    #     # Tell motors to move
-    #     # NOTE the minus sign here is because the camera is mounted upside down
-    #     self.c_p['stepper_target_position'][0] = (self.c_p['stepper_current_position'][0]
-    #                                               - dx * self.c_p['microns_per_pix'])
-    #     self.c_p['stepper_target_position'][1] = (self.c_p['stepper_current_position'][1]
-    #                                               - dy * self.c_p['microns_per_pix'])
+    #     radii = 8 # don't let the particles come closer than 8 microns center to center
+    #     image_shape = np.shape(self.c_p['image'])
+    #     size = int(image_shape[0]*self.c_p['microns_per_pix']) # The size in microns of the image is typically a reasonable size to use in the a-star algorithm
+
+    #     # Check that we don't do anything stupid with the size
+    #     if size <= 1:
+    #         return False
+ 
+    #     # Calculate a distance matrix for positions of particles that are not the trapped one
+    #     LX = self.c_p['laser_position'][0]
+    #     LY = self.c_p['laser_position'][1]
+        
+    #     # Pop the trapped particle to remove it from the area check.
+    #     distances_squared = [(x-LX)**2+(y-LY)**2 for x,y in self.c_p['predicted_particle_positions']]
+    #     positions = np.copy(self.c_p['predicted_particle_positions'])
+    #     positions = np.delete(positions, np.argmin(distances_squared), axis=0)
+
+    #     # Also avoid the pipette if there is one in view.
+    #     rect = None
+    #     if self.c_p['pipette_located']:
+    #         # There is a pipette in view, convert from x,y,w,h to x0,y0,x1,y1
+    #         p_x0 = (self.c_p['pipette_location'][0] - self.c_p['pipette_location'][2]/2)*self.c_p['microns_per_pix']
+    #         p_y0 = (self.c_p['pipette_location'][1])*self.c_p['microns_per_pix']
+    #         p_x1 = (self.c_p['pipette_location'][0] + self.c_p['pipette_location'][2]/2)*self.c_p['microns_per_pix']
+    #         p_y1 = -1
+    #         rect = np.array((p_y0, p_x0, p_y1, p_x1)).astype(int)
+
+    #     area = generate_move_map(size, image_shape[0], image_shape[1], positions, radii, rect, None)
+
+    #     s = np.shape(area)
+    #     # Assume that we start with particle in middle, changed from middle to trapped particle position
+        
+    #     start = (int(LY*self.c_p['microns_per_pix']), int(LX*self.c_p['microns_per_pix']))
+        
+    #     # Convert both target position and current laser position to the area coordinates(microns)
+    #     # If the target is outside the FOW(field of view9 it is instead set to the edge of the FOW by the a-star algorithm.
+    #     x_end = int(LX*self.c_p['microns_per_pix'] + self.c_p['microns_per_tick']*dx)
+    #     y_end = int(LY*self.c_p['microns_per_pix'] + self.c_p['microns_per_tick']*dy)
+
+    #     # Find the path
+    #     start = tuple(start)
+    #     end_pos = tuple((y_end, x_end)) # x and y seem switched in the image
+    #     path = a_star(area, start, end_pos)
+
+    #     if path is None:
+    #         print("No path found"," searched  path from ", start, " to ", end_pos)
+    #         return 
+    #     path = simplify_path(path)
+    #     print("Finding path from ", start, " to ", end_pos, "path is ", path)
+
+    #     # Need to handle the case when the particle appears to be inside the pipette(from the algorithms point of view.)
+    #     self.c_p['minitweezers_target_pos'][0] = int(x0 + (path[1][1]-start[1])*self.c_p['ticks_per_micron'])*0.9
+    #     self.c_p['minitweezers_target_pos'][1] = int(y0 + (path[1][0]-start[0])*self.c_p['ticks_per_micron'])
+    #     print("Smart move to ", self.c_p['minitweezers_target_pos'])
+    #     self.c_p['move_to_location'] = True
+
+    def center_particle(self, center, move_limit=10):
+        # Find particle closest to the center
+
+        center_particle = self.find_closest_particle(center, False)
+        if center_particle is None:
+            return
+
+        # Calculate the distance to move the stage
+        dx = center[1] - center_particle[0]
+        dy = center[0] - center_particle[1]
+        if np.abs(dx)<move_limit and np.abs(dy)<move_limit:
+            print(f"Limits {dx} {dy}")
+            return
+        # Tell motors to move
+        # NOTE the minus sign here is because the camera is mounted upside down
+        self.c_p['stepper_target_position'][0] = self.c_p['stepper_current_position'][0] - dx * self.c_p['microns_per_pix']
+        self.c_p['stepper_target_position'][1] = self.c_p['stepper_current_position'][1] - dy * self.c_p['microns_per_pix']
 
     def move_piezos_2_saved_positions(self, positions, threshold=5e-4):
         """
@@ -818,39 +935,35 @@ class AutoControllerThread(Thread):
         current_b_sum = np.mean(self.data_channels['PSD_B_P_sum'].get_data(1000)[0])
 
         # Check that we are not auto-aliging piezo A, then move piezo a towards target position
+                # Have had some problems with noise on some of the sum-channels, this is a quick fix for that.
         if current_a_sum < 0:
             current_a_sum = 20_000
         if current_b_sum < 0:
             current_b_sum = 20_000
     
-        # Will give a number roughly in the range -0.5 to 0.5
-        dax = (positions[0] - current_a_x)/current_a_sum 
+        dax = (positions[0] - current_a_x)/current_a_sum # Will give a number roughly in the range -0.5 to 0.5
         day = (positions[1] - current_a_y)/current_a_sum
         dbx = (positions[2] - current_b_x)/current_b_sum
         dby = (positions[3] - current_b_y)/current_b_sum
         
 
-        if (np.abs(dax)<threshold and np.abs(day) < threshold
-            and np.abs(dbx)<threshold and np.abs(dby)<threshold):
+        if np.abs(dax)<threshold and np.abs(day)<threshold and np.abs(dbx)<threshold and np.abs(dby)<threshold:
             return True
-
-        prefac = 30_000 # Moving the whole distance can be unstable.
-        ax_n = convert_to_uint16(self.data_channels['dac_ax'].get_data(1)[0] + dax*prefac)
+        prefac = 30_000 # Moving the whole distance was unstable at some points.
+        ax_n = convert2uint16(self.data_channels['dac_ax'].get_data(1)[0] + dax*prefac)
         if ax_n == 65535 or ax_n == 0:
             return True
         self.c_p['piezo_A'][0] = ax_n
-
-        ay_n = convert_to_uint16(self.data_channels['dac_ay'].get_data(1)[0] + day*prefac)
+        ay_n = convert2uint16(self.data_channels['dac_ay'].get_data(1)[0] + day*prefac)
         if ay_n == 65535 or ay_n == 0:
             return True
         self.c_p['piezo_A'][1] = ay_n
 
-        bx_n = convert_to_uint16(self.data_channels['dac_bx'].get_data(1)[0] + dbx*prefac)
+        bx_n = convert2uint16(self.data_channels['dac_bx'].get_data(1)[0] + dbx*prefac)
         if bx_n == 65535 or bx_n == 0:
             return True
         self.c_p['piezo_B'][0] = bx_n
-
-        by_n = convert_to_uint16(self.data_channels['dac_by'].get_data(1)[0] + dby*prefac)
+        by_n = convert2uint16(self.data_channels['dac_by'].get_data(1)[0] + dby*prefac)
         if by_n == 65535 or by_n == 0:
             return True
         self.c_p['piezo_B'][1] = by_n
@@ -863,8 +976,7 @@ class AutoControllerThread(Thread):
         Used when multiple particles are in the trap but you really only want one.
 
         Moves away one of the lasers so that the particle is no longer trapped.
-        Moving both lasers risks leaving the particle in the same position so that it is
-        trapped again when the lasers are reset.
+        Moving both lasers risks leaving the particle in the same position so that it is trapped again when the lasers are reset.
         """
         if not self.c_p['particle_trapped']:
             return True
@@ -891,6 +1003,8 @@ class AutoControllerThread(Thread):
             else:
                 y = 60000
             self.c_p['piezo_B'] = np.uint16([x, y])
+
+        # move the piezos to a bad position
         
         return False
 
@@ -902,26 +1016,23 @@ class AutoControllerThread(Thread):
 
     def is_point_in_rectangle(self, point, top_left, bottom_right):
         """
-        Determine if the point (px, py) is inside the rectangle defined by top-left and bottom-right
-        coordinates.
+        Determine if the point (px, py) is inside the rectangle defined by top-left and bottom-right coordinates.
         """
         px, py = point
         tlx, tly = top_left
         brx, bry = bottom_right
         return tlx <= px <= brx and tly <= py <= bry
     
-    def check_close_to_Pipette(self, offset=40):
+    def check_close2Pipette(self, offset=40):
         """
-        Checks the predicted particle position for particles that are far away enough from the
-        pipette to not be stuck on it
+        Checks the predicted particle position for particles that are far away enough from the pipette to not be stuck on it
         and use this as possible particles to trap.
         """
         if not self.c_p['pipette_located']:
             #  No pipette in view, we can safely return all particles.
             return self.c_p['predicted_particle_positions']
 
-        # Extract the full extent of the pipette, particles really close to it are not interesting
-        # to trap since they are likely to be stuck.
+        # Extract the full extent of the pipette, particles really close to it are not interesting to trap since they are likely to be stuck.
         top_left = self.c_p['pipette_location'][:2]
         top_left[0] -= self.c_p['pipette_location'][2]/2
         top_left[1] -= offset
@@ -937,62 +1048,99 @@ class AutoControllerThread(Thread):
 
         return np.array(particle_positions)
 
-    def center_on_particle(self, center):
+    # def trap_particle_minitweezers_old(self, center, move_limit=30):
+       
+    #     if not self.c_p['tracking_on']:
+    #         print("Cannot center particle without tracking on")
+    #         return False
+        
+    #     center_particle_position, index = self.find_closest_particle(center, True, self.check_close2Pipette())
+
+    #     # Check that we are not moving and that we are not moving and that there is a particle to trap.
+    #     if center_particle_position is None:
+    #         return False
+        
+    #     dx = (center_particle_position[0] - center[0]) * self.c_p['ticks_per_pixel']
+    #     dy = (center_particle_position[1] - center[1]) * self.c_p['ticks_per_pixel']
+    #     dz = 0
+    #     target_z_pos = self.MotorController.get_z_position()
+        
+    #     if np.abs(dx) < move_limit and np.abs(dy) < move_limit and np.abs(dz) < move_limit/3:
+    #         return True
+
+    #     extra_move = 1 # Moving a little less than needed
+    #     target_x_pos = int(self.MotorController.get_x_position() + dx*extra_move)
+    #     target_y_pos = int(self.MotorController.get_y_position() - dy*extra_move) # Offest since we don't want to collide with the pipette.
+
+    #     # self.c_p['minitweezers_target_pos'] = [target_x_pos, target_y_pos, target_z_pos]
+    #     # self.c_p['move_to_location'] = True
+    #     self.MotorController.move_to_location([target_x_pos, target_y_pos, target_z_pos])
+
+    def trap_particle_minitweezers(self, center, move_limit=30):
         # Also break when particle is trapped.
         # Center is the laser position on which to center the particle.
        
         if not self.c_p['tracking_on']:
-            print("Cannot center particle without tracking on")            
-            self.motor_controller.stop_moving()
+            print("Cannot center particle without tracking on")
+            # self.c_p['motor_x_target_speed'] = 0
+            # self.c_p['motor_y_target_speed'] = 0
+            # self.c_p['motor_z_target_speed'] = 0
+            self.MotorController.stop_moving()
             return False
         
-        center_particle_position, index = self.find_closest_particle(
-            center, True, self.check_close_to_Pipette())
+        center_particle_position, index = self.find_closest_particle(center, True, self.check_close2Pipette())
 
-        # Check that we are not moving
-        if center_particle_position is None:
-            
-            self.motor_controller.stop_moving()
-            self.moving_to_trap = False
+        # Check that we are not moving and that we are not moving and that there is a particle to trap.
+        if center_particle_position is None: #  or self.c_p['move_to_location']: Changed so that it moves immediately and ignores if there is already a move in progress.
+            # self.c_p['motor_x_target_speed'] = 0
+            # self.c_p['motor_y_target_speed'] = 0
+            # self.c_p['motor_z_target_speed'] = 0
+            self.MotorController.stop_moving()
+            self.moving2trap = False
             return False
         
         dx = (center[0] - center_particle_position[0]) * self.c_p['ticks_per_pixel']
         dy = (center[1] - center_particle_position[1]) * self.c_p['ticks_per_pixel']
-        # Do not move along z, (very) far from focus predictions are unreliable (and the only 
-        # ones that would have been relevant).
+        dz = 0
+        target_z_pos = self.c_p['minitweezers_target_pos'][2]
         
+        # If we are to include the z-position we need to ensure that we have the same index for all the predictions(that it does not change after doing the check-close2 pipette)
+        if self.c_p['z-tracking'] and index<len(self.c_p['z-predictions']) and not self.c_p['pipette_located']:
+            dz =  self.c_p['z-predictions'][index]
+            target_z_pos = int(self.MotorController.get_z_position() + dz*10)
         # If we have trapped a particle then return true        
         if self.c_p['particle_trapped']:
-            self.motor_controller.stop_moving()
-            self.moving_to_trap = False
+            # self.c_p['motor_x_target_speed'] = 0
+            # self.c_p['motor_y_target_speed'] = 0
+            # self.c_p['motor_z_target_speed'] = 0
+            self.MotorController.stop_moving()
+            self.moving2trap = False
             if self.particle_trapped:
                 return True
             return False
 
         fac = 100 / ((dx**2 + dy**2)**0.5) # changed 25_000 to 100
         if self.c_p['mouse_params'][0] == 0:
-            # self.motor_controller.move_at_speed(int(dx*fac), int(dy*fac))
-            self.motor_controller.move_at_speed(int(dy*fac), int(dx*fac)) # Changed here
-            print("Moving at speed x:{dx} y:{dy} ")
+            # self.c_p['motor_x_target_speed'] = int(dx*fac)
+            # self.c_p['motor_y_target_speed'] = int(dy*fac)
+            self.MotorController.move_at_speed(int(dx*fac), int(dy*fac))
             self.movin2trap = True
             return False
         
     def find_and_trap_particle(self):
         """
-        Function that moves to the predefined capillary area and tries to retrieve a particle from
-        there.
+        Function that moves to the predefined capillary area and tries to retrieve a particle from there.
         """
 
-        fludics_channel = ('capillary_1_fluidics_channel' if self.c_p['particle_type'] == 1 else
-                           'capillary_2_fluidics_channel')
+        fludics_channel = 'capillary_1_fluidics_channel' if self.c_p['particle_type'] == 1 else 'capillary_2_fluidics_channel'
         # If already moving, return
-        if self.motor_controller.is_moving():
+        if self.MotorController.is_moving():
             self.c_p['target_pressures'][self.c_p[fludics_channel][0]] = 0
             self.c_p['valves_open'][self.c_p[fludics_channel][2]] = False
             return False
         
-        x = self.motor_controller.get_x_position()
-        y = self.motor_controller.get_y_position()
+        x = self.MotorController.get_x_position()
+        y = self.MotorController.get_y_position()
 
         # If a particle is trapped, go 2 the pipette
         if self.c_p['particle_trapped']:
@@ -1002,16 +1150,15 @@ class AutoControllerThread(Thread):
                 self.c_p['valves_open'][self.c_p[fludics_channel][2]] = False
                 return True
             # We are not at the pipette but we have a particle so we should move 2 the pipette
-            self.motor_controller.move_to_location(self.c_p['pipette_location_chamber'])
+            self.MotorController.move_to_location(self.c_p['pipette_location_chamber'])
             return False
         
         # No particle trapped and not moving, if we are far from the capillary then we should move to the capillary
-        capillary_position = (self.c_p['capillary_1_position'] if self.c_p['particle_type'] == 1
-                              else self.c_p['capillary_2_position'])
-        if (x-capillary_position[0])**2+(y-capillary_position[1])**2 > 100_000 and not self.moving_to_trap: #1_000: # Increased this
+        capillary_position = self.c_p['capillary_1_position'] if self.c_p['particle_type'] == 1 else self.c_p['capillary_2_position']
+        if (x-capillary_position[0])**2+(y-capillary_position[1])**2 > 100_000 and not self.moving2trap: #1_000: # Increased this
             # Don't generally want to change the z focus when moving automatically
-            capillary_position[2] = self.motor_controller.get_z_position()
-            self.motor_controller.move_to_location(capillary_position)
+            capillary_position[2] = self.MotorController.get_z_position()
+            self.MotorController.move_to_location(capillary_position)
             return False
         
         # If we are close to the capillary, we should center the particle, we do this by toggling the correct trapping loop
@@ -1021,6 +1168,47 @@ class AutoControllerThread(Thread):
         self.c_p['target_pressures'][self.c_p[fludics_channel][0]] = self.c_p[fludics_channel][1]
         self.c_p['valves_open'][self.c_p[fludics_channel][2]] = True
         return False
+
+    # ALSO PART OF THE MOVE WHILE AVOIDING PARTICLES
+    # def find_movement_direction(self, margin=10):
+    #     if not self.MotorController.is_moving():
+    #         return 0
+    #     dx = self.MotorController.get_x_position() - self.c_p['minitweezers_target_pos'][0]
+    #     dy = self.MotorController.get_y_position() - self.c_p['minitweezers_target_pos'][1]
+
+    #     if dx**2<margin**2 and dy**2<margin**2:
+    #         return 0
+        
+    #     if dx>=margin and dy>=margin:
+    #         return 1
+    #     elif dx>=margin and -margin<=dy<=margin:
+    #         return 2
+    #     elif dx>=margin and dy<=-margin:
+    #         return 3
+    #     elif -margin<=dx<=margin and dy<=-margin:
+    #         return 4
+    #     elif dx<=-margin and dy<=-margin:
+    #         return 5
+    #     elif dx<=-margin and -margin<=dy<=margin:
+    #         return 6
+    #     elif dx<=-margin and dy>=margin:
+    #         return 7
+    #     elif -margin<=dx<=margin and dy>=margin:
+    #         return 8
+
+    # def check_if_path_clear(self, margin=10):
+    #     dir = self.find_movement_direction(margin=margin)
+    #     if dir == 0 or len(self.c_p['predicted_particle_positions'])<2: # At most one particle (the trapped one) in view
+    #         return True
+        
+    #     # Calculate a distance matrix for positions of particles that are not the trapped one
+    #     LX = self.c_p['laser_position'][0]
+    #     LY = self.c_p['laser_position'][1]
+    #     distances = [[(x-LX),(y-LY)] for x,y in self.c_p['predicted_particle_positions']]
+        
+    #     # Pop the trapped particle to remove it from the check.
+    #     distances_squared = [(x-LX)**2+(y-LY)**2 for x,y in self.c_p['predicted_particle_positions']]
+    #     distances.pop(np.argmin(distances_squared))
 
     def initiate_electrostatic_protocol(self):
         self.EP_positions = np.linspace(self.c_p['electrostatic_protocol_start'],
@@ -1033,9 +1221,6 @@ class AutoControllerThread(Thread):
         self.measurement_start_time = time()
  
     def custom_electrostatic_protocol(self):
-        """
-        Used to perform the particle-particle interactions measurements autonomously.
-        """
 
         if not self.c_p['electrostatic_protocol_running']:
             print("Initiating protocol")
@@ -1082,6 +1267,7 @@ class AutoControllerThread(Thread):
     def find_closest_particle(self, reference_position, return_idx, particle_positions=None):
         """
         Locates the particle closest the reference position.
+        
         """
 
         if particle_positions is None:
@@ -1115,12 +1301,10 @@ class AutoControllerThread(Thread):
                 return None, None
             return None
         
-    def pipette_proximity_check(self, move_to_particle=True):
-        """
-        Checks if the stage is close enough to the pipette to push the particle to it with just the piezos
-        """
+    def move2area_above_pipette_check(self, move2particle=True):
         # Calculate the distance to the target position
-        if move_to_particle:
+
+        if move2particle:
             dx = self.c_p['pipette_particle_location'][0] - self.c_p['Trapped_particle_position'][0]  
             dy = (self.c_p['pipette_particle_location'][1] - self.offset_y) - self.c_p['Trapped_particle_position'][1]    
         else:
@@ -1134,7 +1318,7 @@ class AutoControllerThread(Thread):
             return True
         return False
         
-    def move_to_pipette_tip(self, move_to_particle=True,piezo_y_target=32000, tolerance=4):
+    def move2area_above_pipette(self, move2particle=True,piezo_y_target=32000, tolerance=4):
         """
         Moves the motors to be centered above the particle in the pipette, or alternatively above the pipette tip.
         """
@@ -1148,7 +1332,7 @@ class AutoControllerThread(Thread):
             return False
         
         # Calculate the distance to the taret position
-        if move_to_particle:
+        if move2particle:
             dx = self.c_p['pipette_particle_location'][0] - self.c_p['Trapped_particle_position'][0]  
             dy = (self.c_p['pipette_particle_location'][1] - self.offset_y) - self.c_p['Trapped_particle_position'][1]    
         else:
@@ -1156,7 +1340,7 @@ class AutoControllerThread(Thread):
             dy = (self.c_p['pipette_tip_location'][1] - self.offset_y) - self.c_p['Trapped_particle_position'][1]
 
         # Had to move this to be able to do the check also from the main experiment thread.
-        if self.pipette_proximity_check(move_to_particle):
+        if self.move2area_above_pipette_check(move2particle):
             return True
 
         # Give some time between the moves(1 second)
@@ -1165,8 +1349,8 @@ class AutoControllerThread(Thread):
 
         # Move the stage
         num = 0.9 # Factor to not move to far at a time
-        current_x = self.motor_controller.get_x_position()
-        current_y = self.motor_controller.get_y_position()
+        current_x = self.MotorController.get_x_position()
+        current_y = self.MotorController.get_y_position()
         self.c_p['minitweezers_target_pos'][1] = int(current_y - dy*self.c_p['ticks_per_pixel']*num)
         if (dy*self.c_p['ticks_per_pixel'])**2 < 200:
             self.c_p['minitweezers_target_pos'][0] = int(current_x + dx*self.c_p['ticks_per_pixel']*num)
@@ -1175,7 +1359,7 @@ class AutoControllerThread(Thread):
         if np.abs(current_x-self.c_p['minitweezers_target_pos'][0]) >= tolerance or np.abs(current_y-self.c_p['minitweezers_target_pos'][1]) >= tolerance:
             self.c_p['move_to_location'] = True
             return False
-        if self.motor_controller.is_moving():
+        if self.MotorController.is_moving():
             return False
         return True
     
@@ -1188,7 +1372,7 @@ class AutoControllerThread(Thread):
         if sharpness is not None and sharpness>0.85*max_sharpness:
             return True
 
-        z_pos =self.motor_controller.get_z_position()
+        z_pos =self.MotorController.get_z_position()
         # Check that we don't move too far
         if direction>0:
             if z_pos > starting_guess + range:
@@ -1204,7 +1388,7 @@ class AutoControllerThread(Thread):
                 return True
 
         # Take a step in the correcet direction
-        if not self.motor_controller.is_moving():
+        if not self.MotorController.is_moving():
             self.c_p['minitweezers_target_pos'][2] = int(z_pos + step*direction)
             self.c_p['move_to_location'] = True
         return False
@@ -1217,7 +1401,7 @@ class AutoControllerThread(Thread):
         """
 
         if self.c_p['pipette_focus_startup']:
-            self.start_z = self.motor_controller.get_z_position()
+            self.start_z = self.MotorController.get_z_position()
             self.c_p['minitweezers_target_pos'][2] = int(self.start_z + range*direction)
             self.c_p['move_to_location'] = True
             self.c_p['pipette_focus_startup'] = False
@@ -1225,7 +1409,7 @@ class AutoControllerThread(Thread):
             self.c_p['pipette_sharpness_Z_pos'] = []
             self.sharpnesses_mapped = False
             return False
-        if self.motor_controller.is_moving():
+        if self.MotorController.is_moving():
             return False
         if self.particle_in_pipette:
             if self.c_p['pipette_particle_location'][2] is not None and np.abs(self.c_p['pipette_particle_location'][2]+self.c_p['z-offset'])<0.5:
@@ -1238,7 +1422,7 @@ class AutoControllerThread(Thread):
                     print(f"Not in good focus, devious z position{z_positions}")
 
 
-        self.c_p['pipette_sharpness_Z_pos'].append(self.motor_controller.get_z_position())
+        self.c_p['pipette_sharpness_Z_pos'].append(self.MotorController.get_z_position())
         if not self.c_p['pipette_located']:
             self.c_p['pipette_sharpnesses'].append(-1) # Maybe change so that we get -1 if there is no pipette
         else:
@@ -1251,12 +1435,12 @@ class AutoControllerThread(Thread):
 
         if direction > 0 and self.c_p['pipette_sharpness_Z_pos'][-1] > self.start_z - range:
             if not self.sharpnesses_mapped:
-                self.c_p['minitweezers_target_pos'][2] = int(self.motor_controller.get_z_position() - step)
+                self.c_p['minitweezers_target_pos'][2] = int(self.MotorController.get_z_position() - step)
                 self.c_p['move_to_location'] = True
                 return False
         if direction < 0 and self.c_p['pipette_sharpness_Z_pos'][-1] < self.start_z + range:
             if not self.sharpnesses_mapped:
-                self.c_p['minitweezers_target_pos'][2] = int(self.motor_controller.get_z_position() + step)
+                self.c_p['minitweezers_target_pos'][2] = int(self.MotorController.get_z_position() + step)
                 self.c_p['move_to_location'] = True
                 return False
             
@@ -1274,7 +1458,7 @@ class AutoControllerThread(Thread):
             return True
         return False
 
-    def z_focus(self, limit=0.4): 
+    def z_focus(self, limit=0.3): 
         """
         The system compares the position of the particle in the trap with that of 
         the particle in the pipette, moving the z-position of the stage until they match.
@@ -1304,12 +1488,12 @@ class AutoControllerThread(Thread):
                 return True
             return False
         if dz > 0:
-            self.c_p['minitweezers_target_pos'][2] = int(self.motor_controller.get_z_position() + 4) # Cannot move less than this, trying with 3 now intestead of 4.
+            self.c_p['minitweezers_target_pos'][2] = int(self.MotorController.get_z_position() + 4) # Cannot move less than this, trying with 3 now intestead of 4.
         if dz < 0:
-            self.c_p['minitweezers_target_pos'][2] = int(self.motor_controller.get_z_position() - 4)
+            self.c_p['minitweezers_target_pos'][2] = int(self.MotorController.get_z_position() - 4)
         self.z_move_counter = 0
-        self.c_p['minitweezers_target_pos'][0] = int(self.motor_controller.get_x_position())
-        self.c_p['minitweezers_target_pos'][1] = int(self.motor_controller.get_y_position())
+        self.c_p['minitweezers_target_pos'][0] = int(self.MotorController.get_x_position())
+        self.c_p['minitweezers_target_pos'][1] = int(self.MotorController.get_y_position())
 
         self.c_p['move_to_location'] = True
         return False        
@@ -1340,9 +1524,8 @@ class AutoControllerThread(Thread):
     def move_particle_to_piezo_position(self, piezo_position, tolerance=10_000, step_size=2000):
         """
         Gradually moves the trap to the target position with autoalign turned on.
-        Will autoalign piezo A if autoalign is not already set. Will do so in steps so as not to
-        loose the particles. Returns true if the particle distance squared in DAC steps to the
-        target position within the tolerance of the target position.
+        Will autoalign piezo A if autoalign is not already set. Will do so in steps so as not to loose the particles.
+        Returns true if the particle distance squared in DAC steps to the target position within the tolerance of the target position.
         """
 
         # Check which piezo to move and read the current position
@@ -1375,8 +1558,7 @@ class AutoControllerThread(Thread):
             return False
         return True
 
-    def move_particle_to_position_with_piezo(self, target_position, piezo="piezo_b",
-                                             movement_threshold=3, movement_lim=2000):
+    def move_particle_to_position_with_piezo(self, target_position, piezo="piezo_b", movement_threshold=3, movement_lim=2000):
         """
         Moves the particle with the piezo to the target position.
         Target position should be given in pixels in the image.
@@ -1400,7 +1582,7 @@ class AutoControllerThread(Thread):
                 new_pos = current_piezo_pos_x - (min(int(dx*self.bits_per_pixel), movement_lim))
                 self.c_p['piezo_B'][0] = self.check_limit(new_pos)
             if dx < 0:
-                new_pos = current_piezo_pos_x + (min(int(-dx*self.bits_per_pixel), movement_lim))
+                new_pos = current_piezo_pos_x + (min(int(-dx*self.bits_per_pixel), movement_lim)) # Changed to max instead of min
                 self.c_p['piezo_B'][0] = self.check_limit(new_pos)
             if dy > 0:
                 new_pos = current_piezo_pos_y + (min(int(dy*self.bits_per_pixel), movement_lim))
@@ -1436,8 +1618,9 @@ class AutoControllerThread(Thread):
         x_min, x_max, y_min, y_max = self.approximate_piezo_moveable_area()
         pipette_particle_top = self.c_p['pipette_particle_location'][1] - self.c_p['pipette_particle_location'][3]
         pipette_particle_bottom_reachable = y_max + self.c_p['pipette_particle_location'][3]
-        return (x_min < self.c_p['pipette_particle_location'][0] < x_max and
-                pipette_particle_bottom_reachable > pipette_particle_top)            
+        if x_min<self.c_p['pipette_particle_location'][0]<x_max and pipette_particle_bottom_reachable > pipette_particle_top:
+            return True
+        return False
 
     def align_trapped_and_pipette_X(self, move_dist=100, limit=0.1):
         """
@@ -1451,8 +1634,7 @@ class AutoControllerThread(Thread):
             bool: True if alignment is finished, False otherwise.
         """
 
-        dx = ((self.c_p['pipette_particle_location'][0] - self.c_p['Trapped_particle_position'][0])
-              * self.c_p['microns_per_pix'])
+        dx = (self.c_p['pipette_particle_location'][0] - self.c_p['Trapped_particle_position'][0]) * self.c_p['microns_per_pix']
 
         if dx > limit:
             if self.c_p['portenta_command_2'] == 1: # Autoaligning A
@@ -1470,173 +1652,62 @@ class AutoControllerThread(Thread):
 
         return False
 
-    def touch_trapped_2_pieptte_particle(self, experiment="DNA"):
+    def touch_trapped_2_pieptte_particle(self, force_limit=5, position_limit=0.85, max_dist=6):
         """
-        force_limit - the amount of force, in pN which the particles are allowed to be pushed
-        together with.
-        position_limit - the distance in particle radii that the particles are allowed to be
-            pushed together with.
-        max_dist - the maximum distance in microns that the particles are allowed to be pushed
-            together with.
+        force_limit - the amount of force, in pN which the particles are allowed to be pushed together with.
+        position_limit - the distance in particle radii that the particles are allowed to be pushed together with.
+        max_dist - the maximum distance in microns that the particles are allowed to be pushed together with.
 
         returns a description of what the function is doing or why it is not doing anything.
         """
         
         if not self.particle_in_pipette or not self.particle_trapped:
             print(f"No particle in pipette or trap, pipette {self.particle_in_pipette}, trapped {self.particle_trapped}")
-            self.c_p['touch_particles'] = False
-            self.c_p['touch_counter'] = 0
-            self.c_p['autocontroller_current_step'] = 'checking_pipette'
             return 'particle missing'
 
-        if not self.c_p['z-tracking']:            
-            self.c_p['z-tracking'] = True
+        if not self.c_p['z-tracking']:
+            print("Z-tracking not on")
             return 'z-tracking not on'
 
         if not self.check_particles_can_touch_with_piezo():
             print("Particles too far apart")
-            # TODO handle this by going back to previous step
-            return "Particles too far apart"
+            return 'Too far'
 
         # Check that we are autoaligning.
         if self.c_p['portenta_command_2'] == 0:
-            self.c_p['portenta_command_2'] = 1
-            return "No autoalign, turning it on"
+            print("Autoalign not on")
+            return 'no autoalign'
 
-        # Align in x unless DNA is tugging on the particle
-        tot_force = self.data_channels['trapped_x_force'].get_data(1)[0]**2
-        tot_force += self.data_channels['trapped_y_force'].get_data(1)[0]**2
-        if self.align_trapped_and_pipette_X() and tot_force < 10:
+        # Align in x
+        if self.align_trapped_and_pipette_X():
             print("Aligning in x")
-            return "Aligning in x"
+            return 'aligning in x'
 
-        # Check z-alignment, changed to an average to get a more reliable reading.
-        #dz = 10 * (self.trapped_bead_z.get_average() - self.pipette_bead_z.get_average())
-        z_bead = np.mean(self.data_channels['trapped_particle_z_position'].get_data(10))
-        z_pipette = np.mean(self.data_channels['pipette_particle_z_position'].get_data(10))
-        dz = (z_bead - z_pipette)
-        dy = self.c_p['pipette_particle_location'][1] - self.c_p['Trapped_particle_position'][1] # this will always be positive since the pipette is below the trapped particle
-        radii_sum = self.c_p['pipette_particle_location'][3] + self.c_p['Trapped_particle_position'][3]
-        # Fix z-alginment if the particles are not touching and are missaligned in z
-        if np.abs(dz) > 1 and dy > (radii_sum*1.2+2/self.c_p['microns_per_pix']): # CHanged from 4 to 2
-            self.c_p['focus_z_trap_pipette'] = True
-            return 'need aligning in z'
-
-        # NOTE here other molecules can be added to be attached.
-        if experiment == "DNA":
-            return self.attach_DNA_molecule()
-
-        # # Move in y until we get a positive force or the particles are touching.  
-        # dy = self.c_p['pipette_particle_location'][1] - self.c_p['Trapped_particle_position'][1] # this will always be positive since the pipette is below the trapped particle
-        # radii_sum = self.c_p['pipette_particle_location'][3] + self.c_p['Trapped_particle_position'][3]
-
-        # # Check DNA prescence
-        # particle_separation = (dy-radii_sum) * self.c_p['microns_per_pix']
-        # if self.check_DNA_prescence(particle_separation):
-        #     self.c_p['molecule_attached'] = True
-        #     self.c_p['touch_counter'] = 0
-
-        #     self.c_p['touch_particles'] = False
-        #     self.c_p['stretch_molecule'] = True
-        #     self.c_p['molecule_attached'] = True
-        #     return 'DNA present'
-
-        # # Check z-alignment, changed to an average to get a more reliable reading.
-        # #dz = 10 * (self.trapped_bead_z.get_average() - self.pipette_bead_z.get_average())
-        # z_bead = np.mean(self.data_channels['trapped_particle_z_position'].get_data(10))
-        # z_pipette = np.mean(self.data_channels['pipette_particle_z_position'].get_data(10))
-        # dz = (z_bead - z_pipette)
-        # # Fix z-alginment if the particles are not touching and are missaligned in z
-        # if np.abs(dz) > 1 and dy > (radii_sum*1.2+2/self.c_p['microns_per_pix']): # CHanged from 4 to 2
-        #     self.c_p['focus_z_trap_pipette'] = True
-        #     return 'need aligning in z'
-
-        # # Also if the pipette detection isn't great it gets confused and stop too far from the bottom particle.
-        # self.move_up_and_down(max_dist=max_dist, force_limit_lower=force_limit, position_limit=position_limit)
-      
-        # if self.c_p['touch_counter'] > self.touch_counter_limit:
-        #     print("Touch counter limit reached without molecule attaching")
-        #     self.c_p['touch_counter'] = 0
-        #     self.restart_experiment()
-        #     self.c_p['autocontroller_current_step'] = 'checking_pipette'
-        #     return "No molecule found"
-
-        # return 'touching particles'
-
-    def attach_DNA_molecule(self,  force_limit=5, position_limit=0.85, max_dist=6):
-                # Move in y until we get a positive force or the particles are touching.  
+        # Move in y until we get a positive force or the particles are touching.  
         dy = self.c_p['pipette_particle_location'][1] - self.c_p['Trapped_particle_position'][1] # this will always be positive since the pipette is below the trapped particle
         radii_sum = self.c_p['pipette_particle_location'][3] + self.c_p['Trapped_particle_position'][3]
 
         # Check DNA prescence
         particle_separation = (dy-radii_sum) * self.c_p['microns_per_pix']
         if self.check_DNA_prescence(particle_separation):
-            z_dev = np.mean(self.data_channels['trapped_particle_z_position'].get_data(5))
-            print(f"z_displacement{z_dev}")
-            if np.abs(z_dev) > 0.4: # TODO use the same z-limit everywhere
-                self.compensate_DNA_z_position(z_dev) # Not doing anything here for now.
-
-            x_force = np.mean(self.data_channels['trapped_x_force'].get_data(2))
-            if np.abs(x_force) > 1:
-                self.compensate_DNA_x_position(x_force)
-                return "DNA present, Compensating x-position "
+            print("DNA detected")
             self.c_p['molecule_attached'] = True
             self.c_p['touch_counter'] = 0
-
-            self.c_p['touch_particles'] = False
-            self.c_p['stretch_molecule'] = True
-            self.c_p['molecule_attached'] = True
             return 'DNA present'
+
+        # Check z-alignment, changed to an average to get a more reliable reading.
+        #dz = 10 * (self.trapped_bead_z.get_average() - self.pipette_bead_z.get_average())
+        z_bead = np.mean(self.data_channels['trapped_particle_z_position'].get_data(10))
+        z_pipette = np.mean(self.data_channels['pipette_particle_z_position'].get_data(10))
+        dz = (z_bead - z_pipette)
+        # Fix z-alginment if the particles are not touching and are missaligned in z
+        if np.abs(dz) > 1 and dy > (radii_sum*1.2+2/self.c_p['microns_per_pix']): # CHanged from 4 to 2
+            return 'need aligning in z'
 
         # Also if the pipette detection isn't great it gets confused and stop too far from the bottom particle.
         self.move_up_and_down(max_dist=max_dist, force_limit_lower=force_limit, position_limit=position_limit)
       
-        if self.c_p['touch_counter'] > self.touch_counter_limit:
-            print("Touch counter limit reached without molecule attaching")
-            self.c_p['touch_counter'] = 0
-            self.restart_experiment()
-            self.c_p['autocontroller_current_step'] = 'checking_pipette'
-            return "No molecule found"
-
         return 'touching particles'
-
-    def compensate_DNA_x_position(self, x_force):
-        """
-        Compensates for any x-misalignment between the particles when a DNA molecule is attached.
-        """
-
-        # A movement of 50 bits of the piezos corresponds to about 1 pN therefore moving 40 to be safe
-        x_dist = int(x_force*400)
-        if self.c_p['portenta_command_2'] == 1: # A autoaligning
-            target_x = int(self.c_p['piezo_B'][0] - x_dist)
-            if target_x < 2000 or target_x > 63000:
-                # Something went wrong, we cannot compensate
-                print("Cannot compensate x-position, target out of range")
-                return
-            self.c_p['piezo_B'][0] = target_x
-        else:
-            target_x = int(self.c_p['piezo_A'][0] + x_dist)
-            if target_x < 2000 or target_x > 63000:
-                # Something went wrong, we cannot compensate
-                print("Cannot compensate x-position, target out of range")
-                return
-            self.c_p['piezo_A'][0] = target_x
-        return False
-
-    def compensate_DNA_z_position(self,dz):
-        """
-        Compensates for any z-misalignment between the particles when a DNA molecule is attached.
-        """
-        if dz > 0:
-            self.c_p['minitweezers_target_pos'][2] = int(self.motor_controller.get_z_position() + 4) # Cannot move less than this, trying with 3 now intestead of 4.
-        if dz < 0:
-            self.c_p['minitweezers_target_pos'][2] = int(self.motor_controller.get_z_position() - 4)
-        # A movement of 50 bits of the piezos corresponds to about 1 pN therefore moving 40 to be safe
-        self.c_p['minitweezers_target_pos'][0] = int(self.motor_controller.get_x_position())
-        self.c_p['minitweezers_target_pos'][1] = int(self.motor_controller.get_y_position())
-
-        self.c_p['move_to_location'] = True
-        print("Compensating z-position")
 
     def prepare_electrostatic_exp(self):
         """
@@ -1792,8 +1863,8 @@ class AutoControllerThread(Thread):
             if not self.c_p['recording']:
                 self.zoom_2_particles()
                 sleep(0.5)
-                self.main_window.toggle_recording()
-            if not self.data_saver.is_saving():
+                self.main_window.ToggleRecording()
+            if not self.main_window.saving:
                 self.main_window.record_data()
             return "Starting protocol"
         
@@ -1843,7 +1914,7 @@ class AutoControllerThread(Thread):
                 if self.c_p['piezo_A'][1] <= 1000:
                     self.moving_down = True
 
-    def check_DNA_prescence(self, dy, force_limit=50, min_dist=2, max_dist=6):
+    def check_DNA_prescence(self, dy, force_limit=30, min_dist=2, max_dist=6):
         # Simple check to see if there is a molecule being stretched.
 
         force = np.abs(np.mean(self.data_channels['F_total_Y'].get_data(30)) )
@@ -1851,13 +1922,6 @@ class AutoControllerThread(Thread):
             print(f"DNA detected {dy} microns surface to surface, force of {force} pN")
             return True
         return False
-
-    def check_DNA_prescence_advanced(self):
-        # Idea check two points (from the trapped particle force-position data channel)
-        # If they are both above 50-60 pN and the distance between them is more than 2 microns
-        # then we are golden.
-        # Terminate if force exceeds 100 pN (max pulling force)
-        pass
 
     def check_molecule_broken(self, molecule_length=6, force_limit=20):
         """
@@ -1879,9 +1943,7 @@ class AutoControllerThread(Thread):
             return False
 
         x_min, x_max, y_min, y_max = self.approximate_piezo_moveable_area()
-        if (not (x_min < self.c_p['pipette_tip_location'][0] < x_max and
-                 y_min < self.c_p['pipette_tip_location'][1] 
-                 - self.c_p['Trapped_particle_position'][3] < y_max)):
+        if not (x_min < self.c_p['pipette_tip_location'][0] < x_max and y_min < self.c_p['pipette_tip_location'][1] - self.c_p['Trapped_particle_position'][3] < y_max):
             print("Pipette location outside of moveable area")
             print(self.c_p['pipette_tip_location'], x_min, x_max, y_min, y_max)
 
@@ -1895,55 +1957,40 @@ class AutoControllerThread(Thread):
         self.c_p['protocol_data'][0] = 0
         self.limits_found = [False, False]
         self.protocol_started = False
-        if self.data_saver.is_saving():
+        if self.main_window.saving:
             self.main_window.record_data()
         if terminate_recording and self.c_p['recording']:
             # Will turn off recording after having finished the experiment, regardless of what the user thinks of this.
-            self.main_window.toggle_recording()
+            self.main_window.ToggleRecording()
             self.reset_zoom_level()
 
     def stretch_molecule(self):
         """
         Starts stretching a molecule and saving data from the stretch.
-        This assumes that we have a molecule attached between the particles. It is essentially
-        the step that comes after touching the particles together and finding a molecule.
         """
-        # Check that we have a molecule attached and particles in position so we are ready to
-        # stretch
-
+        # Check that we have a molecule attached and particles in position so we are ready to stretch
         if self.check_molecule_broken():
             self.terminate_protocol()
-            print("Molecule broke, terminating protocol and attempting to reattach the molecule")            
-            self.c_p['stretch_molecule'] = False
-            self.c_p['touch_particles'] = True
+            print("Molecule broke, terminating protocol and attempting to reattach the molecule")
             return "Molecule broken"
-
-        if not (self.c_p['particle_in_pipette'] and self.c_p['particle_trapped']):
-            print(f"""Particle lost: Particle in pipette: {self.c_p['particle_in_pipette']},
-                  particle trapped: {self.c_p['particle_trapped']}""")
+        if not (self.c_p['particle_in_pipette'] and self.c_p['particle_trapped']): # Should we use the averaged self.particle_trapped instead?
+            print(f"Particle lost: Particle in pipette: {self.c_p['particle_in_pipette']}, particle trapped: {self.c_p['particle_trapped']}")
             # Terminating protocol and resetting variables
             self.terminate_protocol()
-            self.c_p['stretch_molecule'] = False
             return "Not ready to stretch"
 
         # If the protocol is not started then we should create a protocol
-        # this will always be positive since the pipette is below the trapped particle
-        dy = self.c_p['pipette_particle_location'][1] - self.c_p['Trapped_particle_position'][1] 
-        radii_sum = (self.c_p['pipette_particle_location'][3]
-                     + self.c_p['Trapped_particle_position'][3])
+
+        dy = self.c_p['pipette_particle_location'][1] - self.c_p['Trapped_particle_position'][1] # this will always be positive since the pipette is below the trapped particle
+        radii_sum = self.c_p['pipette_particle_location'][3] + self.c_p['Trapped_particle_position'][3]
         if not self.protocol_started:
             # Check if upper limit of protocol is found, if not move up
             if not self.limits_found[0]:
                 self.moving_down = False
-                self.move_up_and_down(max_dist=self.c_p['stretching_distance'] * 1.7,
-                                      force_limit_lower=1000,
-                                      force_limit_upper=self.c_p['max_force'],
-                                      position_limit=1)
+                self.move_up_and_down(max_dist=self.c_p['stretching_distance'] * 1.7, force_limit_lower=1000, force_limit_upper=self.c_p['max_force'], position_limit=1)
                 y_force = np.abs(np.mean(self.data_channels['F_total_Y'].get_data(20)))
-                force_distance = (y_force >= self.c_p['stretch_force']
-                                  and dy-radii_sum > (self.c_p['min_stretch_distance']
-                                                      /self.c_p['microns_per_pix']))
-                if force_distance or self.c_p['piezo_B'][1] < 1200 or self.c_p['piezo_A'][1] < 1200:
+                force_distance = y_force >= self.c_p['stretch_force'] and dy-radii_sum > (self.c_p['min_stretch_distance']/self.c_p['microns_per_pix']) 
+                if force_distance or self.c_p['piezo_B'][1]<1200 or self.c_p['piezo_A'][1]<1200:
                     self.limits_found[0] = True
                     if self.c_p['portenta_command_2'] == 1:
                         self.c_p['protocol_limits_dac'][0] = self.c_p['piezo_B'][1]
@@ -1953,10 +2000,7 @@ class AutoControllerThread(Thread):
             if not self.limits_found[1] and self.limits_found[0]:
                 self.moving_down = True
                 position_limit = 1.2 # how close in terms of radiis the particles are allowed to get to each other.
-                self.move_up_and_down(max_dist=self.c_p['stretching_distance'],
-                                      force_limit_lower=1000,
-                                      force_limit_upper=self.c_p['stretch_force'],
-                                      position_limit=position_limit)
+                self.move_up_and_down(max_dist=self.c_p['stretching_distance'], force_limit_lower=1000, force_limit_upper=self.c_p['stretch_force'], position_limit=position_limit)
                 
                 if dy < radii_sum*position_limit or self.c_p['piezo_B'][1]>63800 or self.c_p['piezo_A'][1]>63800:
                     self.limits_found[1] = True
@@ -1965,7 +2009,7 @@ class AutoControllerThread(Thread):
                     else:
                         self.c_p['protocol_limits_dac'][1] = self.c_p['piezo_A'][1]
 
-        if not(self.limits_found[0] and self.limits_found[1]):            
+        if not(self.limits_found[0] and self.limits_found[1]):
             return "Looking for limits"
 
         if not self.protocol_started:
@@ -1980,22 +2024,19 @@ class AutoControllerThread(Thread):
             else:
                 self.c_p['protocol_data'][0] = 2 # Protocol activates By
             self.protocol_start_time = time()
-            if not self.data_saver.is_saving():
+            if not self.main_window.saving:
                 self.main_window.record_data()
             return "Starting protocol"
 
         if time() - self.protocol_start_time > self.c_p['measurement_time']:
             self.terminate_protocol()
-            self.c_p['experiment_finished'] = True
-            self.c_p['stretch_molecule'] = False
             return "Protocol finished"
         return "Protocol underway"
 
-
     def update_lasers_position_from_PSDs(self):
         """
-        Estimates the laser positions based on the psd readings. Assumes that the laser_position_A
-        and laser_position_B are correct and set to while the PSD_position_reading was 0.        
+        Estimates the laser positions based on the psd readings. Assumes that the laser_position_A and laser_position_B are correct and set to
+        while the PSD_position_reading was 0.        
         """
         self.PSD_A_P_sum = np.mean(self.data_channels['PSD_A_P_sum'].get_data(10))
         self.PSD_B_P_sum = np.mean(self.data_channels['PSD_B_P_sum'].get_data(10))
@@ -2019,27 +2060,14 @@ class AutoControllerThread(Thread):
             psd_b_y = np.mean(self.data_channels['PSD_B_P_Y'].get_data(10)) / self.PSD_B_P_sum 
 
             # For some reason this only display something once the tracking is turned on.
-            laser_a_x = (self.c_p['laser_position_A'][0]
-                         + (self.c_p['laser_a_transfer_matrix'][0] * psd_a_x
-                            + self.c_p['laser_a_transfer_matrix'][1] * psd_a_y)
-                            / self.c_p['microns_per_pix'])
-            laser_a_y = (self.c_p['laser_position_A'][1]
-                         + (self.c_p['laser_a_transfer_matrix'][2] * psd_a_x
-                            + self.c_p['laser_a_transfer_matrix'][3] * psd_a_y)
-                            / self.c_p['microns_per_pix'])
-            laser_b_x = (self.c_p['laser_position_B'][0]
-                         + (self.c_p['laser_b_transfer_matrix'][0] * psd_b_x
-                            + self.c_p['laser_b_transfer_matrix'][1] * psd_b_y)
-                            / self.c_p['microns_per_pix'])
-            laser_b_y = (self.c_p['laser_position_B'][1]
-                         + (self.c_p['laser_b_transfer_matrix'][2] * psd_b_x
-                            + self.c_p['laser_b_transfer_matrix'][3] * psd_b_y)
-                            / self.c_p['microns_per_pix'])
+            laser_a_x = self.c_p['laser_position_A'][0] + (self.c_p['laser_a_transfer_matrix'][0] * psd_a_x + self.c_p['laser_a_transfer_matrix'][1] * psd_a_y)/self.c_p['microns_per_pix']
+            laser_a_y = self.c_p['laser_position_A'][1] + (self.c_p['laser_a_transfer_matrix'][2] * psd_a_x + self.c_p['laser_a_transfer_matrix'][3] * psd_a_y)/self.c_p['microns_per_pix'] # Changed to - here, transfer matrix also different after update of controller.
+            laser_b_x = self.c_p['laser_position_B'][0] + (self.c_p['laser_b_transfer_matrix'][0] * psd_b_x + self.c_p['laser_b_transfer_matrix'][1] * psd_b_y)/self.c_p['microns_per_pix']
+            laser_b_y = self.c_p['laser_position_B'][1] + (self.c_p['laser_b_transfer_matrix'][2] * psd_b_x + self.c_p['laser_b_transfer_matrix'][3] * psd_b_y)/self.c_p['microns_per_pix']
 
         self.c_p['laser_position_A_predicted'] = np.array([laser_a_x, laser_a_y])
         self.c_p['laser_position_B_predicted'] = np.array([laser_b_x, laser_b_y])
-        self.c_p['laser_position'] = (self.c_p['laser_position_A_predicted']
-                                      + self.c_p['laser_position_B_predicted']) / 2
+        self.c_p['laser_position'] = (self.c_p['laser_position_A_predicted'] + self.c_p['laser_position_B_predicted'])/2
 
     def suck_particle_into_pipette(self):
         """
@@ -2053,28 +2081,26 @@ class AutoControllerThread(Thread):
 
         # Move the particle to the pipette using the piezo
         distance_x = self.c_p['pipette_tip_location'][0] - self.c_p['Trapped_particle_position'][0]
-        distance_y = (self.c_p['pipette_tip_location'][1] - self.c_p['Trapped_particle_position'][1]
-                      - self.c_p['Trapped_particle_position'][3]) # Accounting for radii now.
+        distance_y = self.c_p['pipette_tip_location'][1] - self.c_p['Trapped_particle_position'][1] - self.c_p['Trapped_particle_position'][3] # Accounting for radii now.
         if distance_x**2 + distance_y**2 < (6/self.c_p['microns_per_pix'])**2:
             print(f"Close enough to suck")
-            self.c_p['move_to_pipette_tip'] = False
+            self.c_p['move2area_above_pipette'] = False
 
             self.c_p['move_particle2pipette'] = False
             self.c_p['pump_PSU_on'] = True
             sleep(1)
             self.c_p['pump_PSU_on'] = False
-            self.motor_controller.move_to_location(self.c_p['pipette_location_chamber'])
+            self.MotorController.move_to_location(self.c_p['pipette_location_chamber'])
             # Turn of auto-aligning
             self.c_p['portenta_command_2'] = 0
             self.c_p['move_piezo_2_target'] = True
             
             return "Finished"
 
-        if not self.pipette_proximity_check(False) and not self.c_p['move_particle2pipette']:
+        if not self.move2area_above_pipette_check(False) and not self.c_p['move_particle2pipette']:
             #print("Pipette location outside of moveable area")
-            self.c_p['move_to_pipette_tip'] = True
-            print("Pipette location outside of moveable area",
-                  x_max, x_min, y_max, y_min, self.c_p['pipette_tip_location'])
+            self.c_p['move2area_above_pipette'] = True
+            print("Pipette location outside of moveable area", x_max, x_min, y_max, y_min, self.c_p['pipette_tip_location'])
             return "Moving with motors to pipette location"
 
         # Move the particle to the pipette using the piezo
@@ -2086,21 +2112,19 @@ class AutoControllerThread(Thread):
     def restart_experiment(self):
         """
         Drops the trapped particle and restarts the experiment with a new particle.
-        Does this by moving the piezos away from their current position and then flushing the
-        chamber.
+        Does this by moving the piezos away from their current position and then flushing the chamber.
         """
         self.c_p['drop_particle'] = True
         print("Restaring experiment by dropping particle and flushing chamber.")
         # Setting some parameters to false
         self.c_p['search_and_trap'] = False
         self.c_p['centering_on'] = False
-        self.c_p['move_to_pipette_tip'] = False
+        self.c_p['move2area_above_pipette'] = False
         self.c_p['touch_particles'] = False
 
         tmp = self.c_p['target_pressures'][self.c_p['central_fluidics_channel'][0]]
         
-        self.c_p['target_pressures'][self.c_p['central_fluidics_channel'][0]] = \
-            self.c_p['central_fluidics_channel'][1]
+        self.c_p['target_pressures'][self.c_p['central_fluidics_channel'][0]] = self.c_p['central_fluidics_channel'][1]
 
         # Opening valves
         if self.c_p['valves_controller_connected']:
@@ -2138,39 +2162,36 @@ class AutoControllerThread(Thread):
             self.c_p['centering_on'] = False
             self.c_p['touch_particles'] = False
             self.c_p['search_and_trap'] = False
-            self.c_p['move_to_pipette_tip'] = False
+            self.c_p['move2area_above_pipette'] = False
 
-            x = self.motor_controller.get_x_position()
-            y = self.motor_controller.get_y_position()
+            x = self.MotorController.get_x_position()
+            y = self.MotorController.get_y_position()
 
-            if ((x-self.c_p['pipette_location_chamber'][0])**2
-                + (y-self.c_p['pipette_location_chamber'][1])**2 > 200):
-                if not self.motor_controller.is_moving():
-                    self.motor_controller.move_to_location(self.c_p['pipette_location_chamber'])
+            if (x-self.c_p['pipette_location_chamber'][0])**2 + (y-self.c_p['pipette_location_chamber'][1])**2 > 200:
+                if not self.MotorController.is_moving():
+                    self.MotorController.move_to_location(self.c_p['pipette_location_chamber'])
                 print(f"Moving to pipette location {self.c_p['pipette_location_chamber']}")
                 return False
 
-            if self.motor_controller.is_moving():
+            if self.MotorController.is_moving():
                 return False
 
-            if (not self.c_p['focus_pipette'] and
-                self.c_p['autocontroller_current_step'] != 'focusing_pipette'):
+            if not self.c_p['focus_pipette'] and self.c_p['autocontroller_current_step'] != 'focusing_pipette':
                 self.c_p['autocontroller_current_step'] = 'focusing_pipette'
                 self.c_p['focus_pipette'] = True
-                self.c_p['move_to_pipette_tip'] = False
+                self.c_p['move2area_above_pipette'] = False
                 self.c_p['suck_into_pipette'] = False
                 print("Starting focusing of pipette")
                 return False
-
         if self.c_p['focus_pipette'] and self.c_p['autocontroller_current_step'] == 'focusing_pipette':
             print("Focusing pipette")
             self.c_p['touch_particles'] = False
-            self.c_p['move_to_pipette_tip'] = False
+            self.c_p['move2area_above_pipette'] = False
             self.c_p['suck_into_pipette'] = False
             return False
 
         # If we are close to the pipette then we should check what is in the pipette since now we are focused
-        if self.c_p['autocontroller_current_step'] == 'focusing_pipette' and not self.motor_controller.is_moving():
+        if self.c_p['autocontroller_current_step'] == 'focusing_pipette' and not self.MotorController.is_moving():
             print("Checking pipette contents and updating z position of pipette")
             if not self.c_p['pipette_located']:
                 self.c_p['autonomous_experiment'] = False
@@ -2202,8 +2223,7 @@ class AutoControllerThread(Thread):
                 return False
 
             if self.particle_in_pipette and self.particle_trapped:
-                # if the trapped particle is of type 1 then we shuld drop it and get a 
-                # type 2 particle
+                # if the trapped particle is of type 1 then we shuld drop it and get a type 2 particle
                 self.c_p['suck_into_pipette'] = False
                 if self.c_p['particle_type'] == 1:
                     self.drop_particle()
@@ -2211,15 +2231,12 @@ class AutoControllerThread(Thread):
                 return True
         
         # We are searching for a new particle to trap, let the other loop do it's job
-        if (self.c_p['autocontroller_current_step'] == 'searching_for_particle_1'
-            or self.c_p['autocontroller_current_step'] == 'searching_for_particle_2'):
-            # Once the loop is finished it automatically turns off the search_and_trap and goes to 
-            # the pipette, use this as a cue to move on by aligning the pipette and the particle 
-            # in it
+        if self.c_p['autocontroller_current_step'] == 'searching_for_particle_1' or self.c_p['autocontroller_current_step'] == 'searching_for_particle_2':
+            # Once the loop is finished it automatically turns off the search_and_trap and goes to the pipette, use this as a cue to move on by aligning the pipette and the particle in it
             if not self.c_p['search_and_trap']:
                 self.c_p['autocontroller_current_step'] = 'checking_pipette'
             return False
-        return self.particle_in_pipette and self.particle_trapped
+        return self.particle_in_pipette and self.particle_trapped #False
 
     def full_auto_experiment(self):
         """
@@ -2235,59 +2252,51 @@ class AutoControllerThread(Thread):
             print("RBC auto experiment in progress")
             self.auto_RBC_experiment()
             return
-        # Also different since there is just a single particle needed
         elif self.c_p['autonomous_experiment_type'] == 'auto_stokes':
             self.auto_Stokes_test_and_size_sorting()
             return
 
-        # For other experiments two particles are needed so therefore we try and trap two particles
-
-        # Check if there is a particle trapped, if that is not the case return the lasers
-        # to their center position
         if not self.particle_trapped:
             self.c_p['move_piezo_2_target'] = True
             self.c_p['portenta_command_2'] = 0
         else:
             self.c_p['portenta_command_2'] = 2
 
-        # Collect 2 particles
         if not self.get_2_particles():
             if self.c_p['autocontroller_current_step'] == 'touching_particles':
                 self.c_p['touch_particles'] = False
                 self.c_p['autocontroller_current_step'] = 'checking_pipette'
                 print("Particle touching protocol interruptd")
-            # This is a fix for a situation in wich we get stuck at  
-            # self.c_p['autocontroller_current_step'] == 'move_to_pipette_tip' with
-            #  the particle trapped.
-            if (not self.particle_trapped and 
-                self.c_p['autocontroller_current_step'] == 'move_to_pipette_tip'):
+            # This is a fix for a situation in wich we get stuck at  self.c_p['autocontroller_current_step'] == 'move2area_above_pipette' with the particle trapped.
+            if not self.particle_trapped and self.c_p['autocontroller_current_step'] == 'move2area_above_pipette':
                 self.c_p['autocontroller_current_step'] = 'checking_pipette'
                 self.c_p['suck_into_pipette'] = False
-                self.c_p['move_to_pipette_tip'] = False
-                print("No particle trapped, problematic")                
+                self.c_p['move2area_above_pipette'] = False
+                print("No particle trapped, problematic")
+                # Set startup as well?
             return
 
         # We have the two desired particles, one in the trap and the other in the pipette, and the pipette focus is okay but not optimized.
-        if self.c_p['autocontroller_current_step'] == 'focusing_pipette' and not self.motor_controller.is_moving():
-            self.c_p['autocontroller_current_step'] = 'move_to_pipette_tip'
+        if self.c_p['autocontroller_current_step'] == 'focusing_pipette' and not self.MotorController.is_moving():
+            self.c_p['autocontroller_current_step'] = 'move2area_above_pipette'
   
-        if self.c_p['autocontroller_current_step'] == 'move_to_pipette_tip':
-            print("In move_to_pipette_tip step, Check: ", self.pipette_proximity_check(True))
+        if self.c_p['autocontroller_current_step'] == 'move2area_above_pipette':
+            print("In move2area_above_pipette step, Check: ", self.move2area_above_pipette_check(True))
             # Check trapped, if not go back to checking pipette
             if not self.particle_trapped:
-                self.c_p['move_to_pipette_tip'] = False
+                self.c_p['move2area_above_pipette'] = False
                 self.c_p['autocontroller_current_step'] = 'checking_pipette'
                 return    
 
             # Check if we should move with the motors, if so autoalign and move towards the right area
-            if not self.pipette_proximity_check(True):
+            if not self.move2area_above_pipette_check(True):
                 # Move 2 area above the pipette and toggle autoaligning
                 self.c_p['portenta_command_2'] = 2
-                self.c_p['move_to_pipette_tip'] = True
-                self.c_p['autocontroller_current_step'] = 'move_to_pipette_tip'
+                self.c_p['move2area_above_pipette'] = True
+                self.c_p['autocontroller_current_step'] = 'move2area_above_pipette'
                 return
             # If we should not move with the motors then we should move with the piezo and initiate the "touching particles protocol"
-            self.c_p['move_to_pipette_tip'] = False
+            self.c_p['move2area_above_pipette'] = False
 
             if self.c_p['autonomous_experiment_type'] == 'molecule_stretching':
                 self.c_p['touch_particles'] = True
@@ -2314,6 +2323,12 @@ class AutoControllerThread(Thread):
                     self.c_p['touch_particles'] = False
                     return
 
+                if self.c_p['touch_counter'] > self.touch_counter_limit:
+                    print("Touch counter limit reached")
+                    self.c_p['touch_counter'] = 0
+                    self.restart_experiment()
+                    self.c_p['autocontroller_current_step'] = 'checking_pipette'
+
                 # Check if we have finished the measurement, if so we should restart the experiment.
                 if self.c_p['experiment_finished']:
                     self.c_p['autocontroller_current_step'] = 'checking_pipette'
@@ -2323,11 +2338,8 @@ class AutoControllerThread(Thread):
                     self.c_p['experiment_finished'] = False
                     return
 
-                dx = (self.c_p['pipette_particle_location'][0]
-                      - self.c_p['Trapped_particle_position'][0])*self.c_p['microns_per_pix']
-                dy = (self.c_p['pipette_particle_location'][1]
-                      - self.c_p['Trapped_particle_position'][1])*self.c_p['microns_per_pix']
-
+                dx = (self.c_p['pipette_particle_location'][0] - self.c_p['Trapped_particle_position'][0])*self.c_p['microns_per_pix']
+                dy = (self.c_p['pipette_particle_location'][1] - self.c_p['Trapped_particle_position'][1])*self.c_p['microns_per_pix']
                 if dx**2 + dy**2 > 220: # More than ca 15 microns between the particles is unrealisitc to have, increase this parameter if really long molecules are expected.
                     self.c_p['touch_particles'] = False
                     self.c_p['autocontroller_current_step'] = 'checking_pipette'
@@ -2384,7 +2396,7 @@ class AutoControllerThread(Thread):
         """
         Autonomous red blood cell experiments
         By looking at the image, if there are no particles (RBC) then it will flow some particles and try again.
-        Once there is a particle in view it will trap that and start the experiment changing the current according to the power_protocol_currents
+        Once there is a particle in view it will trap that and start the experiment changing the current according to the RBC_laser_currents
         protocol.
         After the protocol is finished it will restart the experiment and try again.        
         """
@@ -2393,7 +2405,7 @@ class AutoControllerThread(Thread):
             self.c_p['portenta_command_2'] = 0
             self.c_p['centering_on'] = True
             self.RBC_protocol_started = False
-            self.c_p['laser_power_protocol_running'] = False
+            self.c_p['RBC_experiment_running'] = False
             if self.particles_in_view:
                 self.RBC_timer = time()
             elif time() - self.RBC_timer > self.RBC_timeout:
@@ -2401,27 +2413,27 @@ class AutoControllerThread(Thread):
                 self.RBC_timer = time()
 
                 # Move back to a safe position if need be.
-                x = self.motor_controller.get_x_position()
-                y = self.motor_controller.get_y_position()
+                x = self.MotorController.get_x_position()
+                y = self.MotorController.get_y_position()
                 if (x-self.c_p['pipette_location_chamber'][0])**2 + (y-self.c_p['pipette_location_chamber'][1])**2 > 500:
-                    if not self.motor_controller.is_moving():
-                        self.motor_controller.move_to_location(self.c_p['pipette_location_chamber'])
+                    if not self.MotorController.is_moving():
+                        self.MotorController.move_to_location(self.c_p['pipette_location_chamber'])
                         print(f"Moving to pipette location {self.c_p['pipette_location_chamber']}")
 
         if self.particle_trapped and not self.RBC_protocol_started:
             self.c_p['centering_on'] = False
             self.c_p['search_and_trap'] = False
-            self.c_p['laser_power_protocol_running'] = True
+            self.c_p['RBC_experiment_running'] = True
             self.RBC_protocol_started = True
         
-        if self.RBC_protocol_started and not self.c_p['laser_power_protocol_running']:
+        if self.RBC_protocol_started and not self.c_p['RBC_experiment_running']:
             self.restart_experiment()
             self.RBC_protocol_started = False
 
     def get_position(self):
-        x = int(self.motor_controller.get_x_position())
-        y = int(self.motor_controller.get_y_position())
-        z = int(self.motor_controller.get_z_position())
+        x = int(self.MotorController.get_x_position())
+        y = int(self.MotorController.get_y_position())
+        z = int(self.MotorController.get_z_position())
         return [x, y, z]
     
     def calc_distance(self, pos1, pos2):
@@ -2439,28 +2451,28 @@ class AutoControllerThread(Thread):
             case "startup":
                 # At startup go to the left position
                 distance = self.calc_distance(self.get_position(), self.c_p['stokes_left_pos'])
-                if distance < 100 and not self.motor_controller.is_moving():
+                if distance < 100 and not self.MotorController.is_moving():
                     self.c_p['stokes_test_step'] = "left2right"
-                elif not self.motor_controller.is_moving():
-                    self.motor_controller.move_to_location(self.c_p['stokes_left_pos'])
+                elif not self.MotorController.is_moving():
+                    self.MotorController.move_to_location(self.c_p['stokes_left_pos'])
             case "left2right":
                 distance = self.calc_distance(self.get_position(), self.c_p['stokes_right_pos'])
-                if distance < 100 and not self.motor_controller.is_moving():
+                if distance < 100 and not self.MotorController.is_moving():
                     # We have stopped near the right position, time to move in the other direction
                     self.c_p['stokes_test_step'] = "right2left"
                     self.move_counter += 1
-                if distance>100 and not self.motor_controller.is_moving():
-                    self.motor_controller.move_to_location(self.c_p['stokes_right_pos'])
+                if distance>100 and not self.MotorController.is_moving():
+                    self.MotorController.move_to_location(self.c_p['stokes_right_pos'])
 
             case "right2left":
                 distance = self.calc_distance(self.get_position(), self.c_p['stokes_left_pos'])
-                if distance < 100 and not self.motor_controller.is_moving():
+                if distance < 100 and not self.MotorController.is_moving():
                     # We have stopped near the left position, time to move in the other direction
                     self.c_p['stokes_test_step'] = "left2right"
                     self.move_counter += 1
 
-                if distance > 100 and not self.motor_controller.is_moving():
-                    self.motor_controller.move_to_location(self.c_p['stokes_left_pos'])
+                if distance > 100 and not self.MotorController.is_moving():
+                    self.MotorController.move_to_location(self.c_p['stokes_left_pos'])
 
                 if self.move_counter >= self.c_p['stokes_max_move_count']*2:
                     self.c_p['stokes_test_step'] = "left2center"
@@ -2469,31 +2481,31 @@ class AutoControllerThread(Thread):
             case "left2center":
                 # We are moving from left to center to then move up and down.
                 distance = self.calc_distance(self.get_position(), self.c_p['stokes_center_pos'])
-                if distance < 100 and not self.motor_controller.is_moving():
+                if distance < 100 and not self.MotorController.is_moving():
                     self.c_p['stokes_test_step'] = "down2up"
                 #
-                if distance > 100 and not self.motor_controller.is_moving():
-                    self.motor_controller.move_to_location(self.c_p['stokes_center_pos'])
+                if distance > 100 and not self.MotorController.is_moving():
+                    self.MotorController.move_to_location(self.c_p['stokes_center_pos'])
 
             case "down2up":
                 distance = self.calc_distance(self.get_position(), self.c_p['stokes_up_pos'])
 
-                if distance < 100 and not self.motor_controller.is_moving():
+                if distance < 100 and not self.MotorController.is_moving():
                     self.c_p['stokes_test_step'] = "up2down"
                     self.move_counter += 1
 
-                if distance > 100 and not self.motor_controller.is_moving():
-                    self.motor_controller.move_to_location(self.c_p['stokes_up_pos'])
+                if distance > 100 and not self.MotorController.is_moving():
+                    self.MotorController.move_to_location(self.c_p['stokes_up_pos'])
 
             case "up2down":
                 distance = self.calc_distance(self.get_position(), self.c_p['stokes_down_pos'])
 
-                if distance < 100 and not self.motor_controller.is_moving():
+                if distance < 100 and not self.MotorController.is_moving():
                     self.c_p['stokes_test_step'] = "down2up"
                     self.move_counter += 1
 
-                if distance > 100 and not self.motor_controller.is_moving():
-                    self.motor_controller.move_to_location(self.c_p['stokes_down_pos'])
+                if distance > 100 and not self.MotorController.is_moving():
+                    self.MotorController.move_to_location(self.c_p['stokes_down_pos'])
 
                 if self.move_counter >= self.c_p['stokes_max_move_count']*2:
                     self.c_p['stokes_test_step'] = "startup"
@@ -2523,7 +2535,7 @@ class AutoControllerThread(Thread):
             self.c_p['stokes_stage'] = "stokes_startup"
             self.c_p['stokes_test_running'] = False
 
-            if self.data_saver.is_saving():
+            if self.main_window.saving:
                 self.main_window.record_data()
                 self.c_p['stokes_test_running'] = False
             return
@@ -2536,7 +2548,7 @@ class AutoControllerThread(Thread):
         radii = self.data_channels['trapped_particle_radii'].get_data(10)
         if np.mean(radii[radii>0]) < self.c_p['stokes_size_threshold'] or self.c_p['multiple_particles_trapped']: # YOLO has a tendency to oversetimate the radii.
             if np.mean(radii[radii>0]) < self.c_p['stokes_size_threshold']:
-                self.data_saver.snapshot(filename_save=self.c_p['filename'] + "_small_particle")                
+                self.main_window.snapshot(filename_save=self.c_p['filename'] + "_small_particle")                
                 print("Small particle trapped, restarting experiment")                
             else:                
                 print("Many particles trapped, restarting experiment")
@@ -2552,8 +2564,8 @@ class AutoControllerThread(Thread):
 
             if distance > 100:
                 # Far from starting position, move to start position
-                if not self.motor_controller.is_moving():
-                    self.motor_controller.move_to_location(self.c_p['stokes_center_pos'], self.c_p)
+                if not self.MotorController.is_moving():
+                    self.MotorController.move_to_location(self.c_p['stokes_center_pos'], self.c_p)
                     return
                 else:
                     # we are moving to start position
@@ -2574,8 +2586,8 @@ class AutoControllerThread(Thread):
         if self.c_p['stokes_stage'] == "performing_test":
 
             # Check that data is being recorded
-            if not self.data_saver.is_saving():
-                self.data_saver.snapshot()
+            if not self.main_window.saving:
+                self.main_window.snapshot()
                 self.main_window.record_data()
             
             if self.c_p['stokes_test_running']:
@@ -2588,7 +2600,7 @@ class AutoControllerThread(Thread):
         
         # Since we have gotten down here the stokes test is finished.
         # Stop saving data and restart the experiment
-        if self.data_saver.is_saving():
+        if self.main_window.saving:
                 self.main_window.record_data()
         self.restart_experiment()
         self.c_p['stokes_exp'] = "startup"
@@ -2613,7 +2625,10 @@ class AutoControllerThread(Thread):
         hairpin_present = np.abs(F1-F2) > jump_threhold and np.abs(F1)>force_threshold and np.abs(F2)>force_threshold
         return hairpin_present
 
-    
+    def auto_hairpins(self):
+        # Most of this is the same as the auto DNA but needs to be implemented and tested.
+
+        return
     def add_prediction_to_data(self):
         """
         Adds the predicted position of the trapped particle and the particle in the pipette to the data channels
@@ -2621,18 +2636,12 @@ class AutoControllerThread(Thread):
         """
 
         if self.c_p['particle_trapped'] and self.c_p['Trapped_particle_position'][2] is not None:
-            self.data_channels['trapped_particle_x_position'].put_data(
-                self.c_p['Trapped_particle_position'][0]*self.c_p['microns_per_pix'])
-            self.data_channels['trapped_particle_y_position'].put_data(
-                self.c_p['Trapped_particle_position'][1]*self.c_p['microns_per_pix'])
-            self.data_channels['trapped_particle_z_position'].put_data(
-                self.c_p['Trapped_particle_position'][2])
-            self.data_channels['trapped_particle_radii'].put_data(
-                self.c_p['Trapped_particle_position'][3]*self.c_p['microns_per_pix'])
-            self.data_channels['trapped_x_force'].put_data(
-                np.mean(self.data_channels['F_total_X'].get_data(500)))
-            self.data_channels['trapped_y_force'].put_data(
-                np.mean(self.data_channels['F_total_Y'].get_data(500)))
+            self.data_channels['trapped_particle_x_position'].put_data(self.c_p['Trapped_particle_position'][0]*self.c_p['microns_per_pix'])
+            self.data_channels['trapped_particle_y_position'].put_data(self.c_p['Trapped_particle_position'][1]*self.c_p['microns_per_pix'])
+            self.data_channels['trapped_particle_z_position'].put_data(self.c_p['Trapped_particle_position'][2])#*self.c_p['microns_per_pix'])
+            self.data_channels['trapped_particle_radii'].put_data(self.c_p['Trapped_particle_position'][3]*self.c_p['microns_per_pix'])
+            self.data_channels['trapped_x_force'].put_data(np.mean(self.data_channels['F_total_X'].get_data(500))) # Temporary solution to see the data live when doing an experiment
+            self.data_channels['trapped_y_force'].put_data(np.mean(self.data_channels['F_total_Y'].get_data(500)))
         else:
             self.data_channels['trapped_particle_x_position'].put_data([0])
             self.data_channels['trapped_particle_y_position'].put_data([0])
@@ -2642,14 +2651,10 @@ class AutoControllerThread(Thread):
             self.data_channels['trapped_y_force'].put_data([0])
 
         if self.c_p['particle_in_pipette'] and self.c_p['pipette_particle_location'][2] is not None:
-            self.data_channels['pipette_particle_x_position'].put_data(
-                self.c_p['pipette_particle_location'][0]*self.c_p['microns_per_pix'])
-            self.data_channels['pipette_particle_y_position'].put_data(
-                self.c_p['pipette_particle_location'][1]*self.c_p['microns_per_pix'])
-            self.data_channels['pipette_particle_z_position'].put_data(
-                self.c_p['pipette_particle_location'][2])
-            self.data_channels['pipette_particle_radii'].put_data(
-                self.c_p['pipette_particle_location'][3]*self.c_p['microns_per_pix'])
+            self.data_channels['pipette_particle_x_position'].put_data(self.c_p['pipette_particle_location'][0]*self.c_p['microns_per_pix'])
+            self.data_channels['pipette_particle_y_position'].put_data(self.c_p['pipette_particle_location'][1]*self.c_p['microns_per_pix'])
+            self.data_channels['pipette_particle_z_position'].put_data(self.c_p['pipette_particle_location'][2])#*self.c_p['microns_per_pix'])
+            self.data_channels['pipette_particle_radii'].put_data(self.c_p['pipette_particle_location'][3]*self.c_p['microns_per_pix'])
         else:
             self.data_channels['pipette_particle_x_position'].put_data([0])
             self.data_channels['pipette_particle_y_position'].put_data([0])
@@ -2659,16 +2664,16 @@ class AutoControllerThread(Thread):
 
     def analyze_frame(self):
         try:
-            self.object_tracker.analyze_frame(self.c_p['image'])
+            self.ObjectTracker.analyze_frame(self.c_p['image'])
         except Exception as e:
             print("Error in analyze frame: ", e)
             return
-        self.c_p['predicted_particle_positions'], self.c_p['predicted_particle_radii'] = self.object_tracker.predict_particle_positions()
+        self.c_p['predicted_particle_positions'], self.c_p['predicted_particle_radii'] = self.ObjectTracker.predict_particle_positions()
         
         # Pipette detection        
-        self.c_p['pipette_location'],self.c_p['pipette_tip_location'], self.c_p['pipette_in_frame'] = self.object_tracker.predict_pipette_position()
+        self.c_p['pipette_location'],self.c_p['pipette_tip_location'], self.c_p['pipette_in_frame'] = self.ObjectTracker.predict_pipette_position()
         if self.c_p['accurate_tip_detection_needed']:
-            self.object_tracker.pipette_tilt_detection(self.c_p)
+            self.ObjectTracker.pipette_tilt_detection(self.c_p)
         else:
             self.c_p['pipette_tip_location'][0] -= self.c_p['pipette_tilt'] * self.c_p['pipette_location'][3]
 
@@ -2680,7 +2685,7 @@ class AutoControllerThread(Thread):
             self.c_p['pipette_located'] = True
 
         if self.c_p['z-tracking']:
-            self.c_p['z-predictions'] = self.object_tracker.predict_z_positions(self.c_p['image'], self.c_p['predicted_particle_positions'])
+            self.c_p['z-predictions'] = self.ObjectTracker.predict_z_positions(self.c_p['image'], self.c_p['predicted_particle_positions'])
             if len(self.c_p['z-predictions']) >=1:
                 self.c_p['z-predictions'] -= self.c_p['z-offset']
              
@@ -2718,8 +2723,7 @@ class AutoControllerThread(Thread):
                 sleep(0.1)
                 continue
             
-            # If the frame was tracked then we may proceed to the automation routines if any of
-            # them are toggled on.
+            # If the frame was tracked then we may proceed to the automation routines if any of them are toggled on.
             if self.c_p['calibration_running']:
                 if self.auto_calibration():
                     self.c_p['calibration_running'] = False
@@ -2727,40 +2731,93 @@ class AutoControllerThread(Thread):
                 continue
 
             if self.c_p['centering_on']:
-                center = ([self.c_p['laser_position'][0] - self.c_p['AOI'][0],
-                           self.c_p['laser_position'][1] - self.c_p['AOI'][2]])
-                self.center_on_particle(center)
+                center = [self.c_p['laser_position'][0] - self.c_p['AOI'][0], self.c_p['laser_position'][1] - self.c_p['AOI'][2]]
+                self.trap_particle_minitweezers(center)
                 if self.c_p['particle_trapped']:
                     self.c_p['centering_on'] = False
-                    if self.moving_to_trap:
-                        self.moving_to_trap = False
-                        self.motor_controller.stop_moving()
+                    if self.moving2trap:
+                        self.moving2trap = False
+                        # self.c_p['motor_x_target_speed'] = 0
+                        # self.c_p['motor_y_target_speed'] = 0
+                        self.MotorController.stop_moving()
 
             if self.c_p['search_and_trap']: # Changed from elif to if
                 if self.find_and_trap_particle():
                     self.c_p['search_and_trap'] = False
 
+            # elif self.c_p['move_avoiding_particles']:
+            #     self.move_while_avoiding_particlesV2(self.c_p['saved_positions'][0][1:3])
+
             elif self.c_p['electrostatic_protocol_toggled'] and not self.c_p['electrostatic_protocol_finished']:
                 self.custom_electrostatic_protocol()
-
             elif self.c_p['find_laser_position']:
                 self.find_true_laser_position()
                 self.c_p['find_laser_position'] = False
 
-            elif self.c_p['move_to_pipette_tip']:
-                 if self.move_to_pipette_tip(move_to_particle=self.c_p['particle_in_pipette']):
-                    self.c_p['move_to_pipette_tip'] = False
+            elif self.c_p['move2area_above_pipette']:
+                 if self.move2area_above_pipette(move2particle=self.c_p['particle_in_pipette']):
+                    self.c_p['move2area_above_pipette'] = False
                      
             elif self.c_p['touch_particles']:
                 message = self.touch_trapped_2_pieptte_particle()
-                print(message)
+
                 self.limits_found = [False, False]
                 self.protocol_started = False
                 self.c_p['protocol_data'][0] = 0
 
+                if message == 'touching particles':
+                    print("Particles touching")
+
+                elif message == 'particle missing':
+                    print("Particle missing")
+                    self.c_p['touch_particles'] = False
+                    self.c_p['touch_counter'] = 0
+                    self.c_p['autocontroller_current_step'] = 'checking_pipette'
+
+                elif message == "No molecule found":
+                    self.c_p['touch_particles'] = False
+
+                elif message == 'need aligning in z':
+                    print("Need aligning in z")
+                    self.c_p['focus_z_trap_pipette'] = True
+
+                elif message == 'no autoalign':
+                    print("No autoalign, turning it on.")
+                    self.c_p['portenta_command_2'] = 1
+
+                elif message == 'DNA present':
+                    print("DNA present, Hallelujah!")
+                    self.c_p['touch_particles'] = False
+                    self.c_p['stretch_molecule'] = True
+                    self.c_p['molecule_attached'] = True
+
             elif self.c_p['stretch_molecule']:
                 message = self.stretch_molecule()
-                print(message)
+                # Printing the message in the terminal, good to keep track of it 
+                if message == "Looking for limits":
+                    print("Looking for limits")
+                elif message == "Starting protocol":
+                    print("Starting protocol")
+                elif message == "Protocol underway":
+                    print("Protocol underway")
+                elif message == "Molecule broken":
+                    print("Molecule broken")
+                    self.c_p['stretch_molecule'] = False
+                    self.c_p['touch_particles'] = True
+                elif message == "Not ready to stretch":
+                    print("Not ready to stretch")
+                    self.c_p['stretch_molecule'] = False
+                elif message == "Protocol finished":
+                    print("Protocol finished")
+                    self.c_p['experiment_finished'] = True
+                    self.c_p['stretch_molecule'] = False
+                elif message == 'particle missing':
+                    print("Particle missing, flushing chamber")
+                    self.restart_experiment()
+                    self.c_p['stretch_molecule'] = False
+                    self.c_p['touch_particles'] = False
+                    self.c_p['touch_counter'] = 0
+                    self.c_p['autocontroller_current_step'] = 'checking_pipette'
 
             # Automatic electrostatic experiments:
             elif self.c_p['electrostatic_experiment_alignment']:
@@ -2795,7 +2852,7 @@ class AutoControllerThread(Thread):
 
             elif self.c_p['focus_pipette']:
                 if self.z_focus_pipette():
-                    self.c_p['pipette_location_chamber'][2] = self.motor_controller.get_z_position()
+                    self.c_p['pipette_location_chamber'][2] = self.MotorController.get_z_position()
                     self.c_p['focus_pipette'] = False
 
             if self.c_p['drop_particle']:
@@ -2832,8 +2889,7 @@ class AutoControllerThread(Thread):
 
     def auto_calibration(self, nbr_averging_points=2000):
         """
-        Protocol for automatically moving the trapped particle in a grid pattern recording the 
-        laser positions and forces at the different locations.
+        Protocol for automatically moving the trapped particle in a grid pattern recording the laser positions and forces at the different locations.
         uses the range 3000 to 63000 on the piezos to make the grid.
 
         The data is stored in a 3-array, calibration_points ordered as follows:
@@ -2859,18 +2915,15 @@ class AutoControllerThread(Thread):
             self.calibration_x = 0
             self.calibration_y = 0
             self.calibration_timer = time()
-            self.PSD_A_P_sum = np.mean(
-                self.data_channels['PSD_A_P_sum'].get_data(nbr_averging_points))
-            self.PSD_B_P_sum = np.mean(
-                self.data_channels['PSD_B_P_sum'].get_data(nbr_averging_points))
+            self.PSD_A_P_sum = np.mean(self.data_channels['PSD_A_P_sum'].get_data(nbr_averging_points))
+            self.PSD_B_P_sum = np.mean(self.data_channels['PSD_B_P_sum'].get_data(nbr_averging_points))
             
             self.c_p['calibration_start'] = False
             self.calibration_dir = "forwards"
             self.c_p['portenta_command_2'] = 1 # Autoaliging A
             self.c_p['piezo_B'][0] = target_x
             self.c_p['piezo_B'][1] = target_y
-            print(f"""Moving to position {self.c_p['piezo_B']}, step {self.calibration_x},
-                  {self.calibration_y}""")
+            print(f"Moving to position {self.c_p['piezo_B']}, step {self.calibration_x}, {self.calibration_y}")
             return False
 
         # Check that there is a particle in view.
@@ -2931,7 +2984,7 @@ class AutoControllerThread(Thread):
         self.c_p['calibration_points'][self.calibration_x, self.calibration_y, 13] = self.data_channels['dac_bx'].get_data(1)[0]
         self.c_p['calibration_points'][self.calibration_x, self.calibration_y, 14] = self.data_channels['dac_by'].get_data(1)[0]
         self.c_p['calibration_points'][self.calibration_x, self.calibration_y, 15] = self.data_channels['Laser_A_power'].get_data(1)[0]
-        self.c_p['calibration_points'][self.calibration_x, self.calibration_y, 16] = self.data_channels['Laser_B_power'].get_data(1)[0]
+        self.c_p['calibration_points'][self.calibration_x, self.calibration_y, 16] = self.data_channels['Laser_A_power'].get_data(1)[0]
 
         # Move to the next position
         if self.calibration_dir== "forwards" and self.calibration_x < self.c_p['grid_size']-1:
@@ -2977,8 +3030,7 @@ class AutoControllerThread(Thread):
         y = y.flatten()
         z = z.flatten()
 
-        # Create the design matrix for a 2D quadratic (degree 2) polynomial:
-        # f(x, y) = a + b*x + c*y + d*x^2 + e*xy + f*y^2
+        # Create the design matrix for a 2D quadratic (degree 2) polynomial: f(x, y) = a + b*x + c*y + d*x^2 + e*xy + f*y^2
         X = np.column_stack([np.ones(x.shape), x, y, x**2, x*y, y**2])
 
         # Fit the polynomial using least squares

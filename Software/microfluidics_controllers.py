@@ -7,9 +7,9 @@ from typing import Mapping
 from enum import Enum
 
 
-class ValveState(Enum):
-    CLOSED = 0
-    OPEN = 1
+# class ValveState(Enum):
+#     CLOSED = 0
+#     OPEN = 1
 
 @runtime_checkable
 class MicrofluidicsController(Protocol):
@@ -24,8 +24,8 @@ class MicrofluidicsController(Protocol):
 class ValveController(Protocol):
     def connect(self, address: str | None = None) -> None: ...
     def is_connected(self) -> bool: ...
-    def toggle_valve(self, valve_id: str, state: "ValveState") -> None: ...
-    def get_valve_states(self) -> Mapping[str, "ValveState"]: ...
+    def toggle_valve(self, valve_id: str, state: int) -> None: ...
+    def get_valve_states(self) -> list[int]: ...
 
 
 @runtime_checkable
@@ -91,7 +91,7 @@ class TestValveController(ValveController):
     def is_connected(self):
         return self.connected
 
-    def toggle_valve(self, valve_id, state: ValveState):
+    def toggle_valve(self, valve_id, state):
         if not self.connected:
             raise Exception("Not connected to valve controller")
         self.valve_states[valve_id] = state
@@ -171,12 +171,19 @@ class MicrofluidicsMonitorThread(QThread):
 
         for channel in range(self.microfluidicsController.get_number_channels()):
             # Indexing starts at 1 in the controller. Also 0 and 1 map to the same channel.
-            self.microfluidicsController.set_pressure(
-                channel+1, self.c_p['target_pressures'][channel])
+            try:
+                self.microfluidicsController.set_pressure(
+                    channel+1, self.c_p['target_pressures'][channel])
+            except RuntimeError as E:
+                print("Could not set pressure")
 
     def get_pressures(self):
         for channel in range(self.microfluidicsController.get_number_channels()):
-            self.c_p['current_pressures'][channel] = self.microfluidicsController.get_pressure(channel+1)
+            try:
+                self.c_p['current_pressures'][channel] = self.microfluidicsController.get_pressure(channel+1)
+            except RuntimeError as E:
+                self.c_p['current_pressures'][channel] = 0
+                print(E)
     
     def check_pipette_pump(self):
         self.pipette_pump.set_power(self.c_p['pipette_pump_target_power'])
@@ -195,7 +202,7 @@ class MicrofluidicsMonitorThread(QThread):
             # Set the valves to the correct state
             # self.c_p['valves_controller_connected'] = self.valve_controller.valve_connected
             if self.valve_controller.is_connected():
-                for index in self.c_p['valves_used']:
+                for index in self.c_p['valves_used']:                    
                     self.valve_controller.toggle_valve(index, self.c_p['valves_open'][index])
                 # self.c_p['valve_controller'].set_valve_states() # Not needed?
             

@@ -159,7 +159,12 @@ class TenmaPullerPSU(PowerSupply):
 
 
 class PSUControlPanel(QWidget):
-    def __init__(self, COM_PORT="COM5"):
+    def __init__(self,
+                 COM_PORT="COM5",
+                 ramp_duration=8.5,
+                 max_time=10,
+                 max_current=3.25,
+                 ):
         super().__init__()
         self.PSU = TenmaPullerPSU(COM_PORT)
         self.output_on = False
@@ -175,9 +180,9 @@ class PSUControlPanel(QWidget):
             [0.9, 0.5],
             [1.0, 0.5],
         ]
-        self.ramp_duration = 8.5
-        self.max_time = 10
-        self.max_current = 3.25
+        self.ramp_duration = ramp_duration
+        self.max_time = max_time
+        self.max_current = max_current
         self.ramp_frequency = 20
         self.voltage = 5
         self.initUI()
@@ -424,7 +429,13 @@ class CurrentProtocolThread(QThread):
 
 def main():
     app = QApplication(sys.argv)
-    ex = PSUControlPanel()
+    ex = PSUControlPanel(
+        COM_PORT="COM6",
+                 ramp_duration=8.5,
+                 max_time=10,
+                 max_current=3.25, # CHeck this
+                 
+    )
     ex.show()
     sys.exit(app.exec())
 

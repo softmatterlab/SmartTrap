@@ -186,7 +186,7 @@ def default_c_p():
             'autonomous_experiment': False, # If this is toggled we will try to do a full autonomous experiment.
             'autonomous_experiment_states': ['checking_pipette','focusing_pipette',
                                              'searching_for_particle_1','sucking_into_pipette',
-                                             'searching_for_particle_2','move2area_above_pipette',
+                                             'searching_for_particle_2','move_to_pipette_tip',
                                              'touching_particles'],
             'centering_on': False,
             'trap_particle': False,
@@ -195,7 +195,7 @@ def default_c_p():
             # parameters for focusing pipette
             'center_pipette': False,
             'suck_into_pipette': False, # used to suck particle into pipette.
-            'move2area_above_pipette': False,
+            'move_to_pipette_tip': False,
             'move_avoiding_particles': False,
             'pipette_z_found': False,
             'move_piezo_2_target': False,
@@ -238,13 +238,13 @@ def default_c_p():
 
             # DNA stretching parmeters
             'molecule_attached': False,
-            'stretching_speed': 20, # Speed of stretching in a.u 
+            'stretching_speed': 100, # Speed of stretching in a.u # Increased from 20
             'stretching_distance': 6, # Maximum distance to stretch in microns, without overstretching
             "min_stretch_distance": 4, # Minimum distance to stretch in microns, including overstretching
             'stretch_force': 69, # Maximum force to stretch with in pN in auto-experiments
             'max_force': 100, # Maximum force allowable in pN, essentially the force at which we risk loosing the bead.
             'protocol_limits_dac': [20_000, 40_000], # The limits of the protocol in DAC units,
-            'measurement_time': 180, # Time(seconds) during which we will do the stretching experiment.
+            'measurement_time': 600, # Time(seconds) during which we will do the stretching experiment.
             'external_save_toggled': False,
             'experiment_finished': False,
             
@@ -286,8 +286,8 @@ def default_c_p():
             'electrostatic_protocol_duration': 20, # Duration of the protocol in seconds per step
 
             # Red blood cells (RBC) experiment parameters
-            'RBC_experiment_running': False,
-            'RBC_laser_currents': [ 
+            'laser_power_protocol_running': False,
+            'power_protocol_currents': [ 
                                     [87,88,20], # 5 mW / laser
                                     [96,98,5], # 10 mW per laser
                                     [87,88,10],

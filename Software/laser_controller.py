@@ -92,7 +92,7 @@ class LaserControllerWidget(QWidget):
         self.timer = QTimer(self)
 
         # set timer timeout callback function
-        self.timer.timeout.connect(self.RBC_auto_experiment)
+        self.timer.timeout.connect(self.laser_power_protocol)
 
         # set the timer to fire every 100 milliseconds (10 times per second)
         self.timer.start(100)
@@ -103,19 +103,18 @@ class LaserControllerWidget(QWidget):
         self.experiment_started = False
         self.snapshot_taken = False
         self.time_interval = 10 # Decrease?
-        self.RBC_no = 0
+        self.particle_no = 0
 
-        self.initiate_interface()
-        
+        self.initiate_interface()        
 
 
     def get_name(self, idx):
-        folder = '\RBC_no-'+str(self.RBC_no)
+        folder = '\particle_no-'+str(self.particle_no)
         if not os.path.exists(self.c_p['recording_path']+folder):
             os.mkdir(self.c_p['recording_path']+folder)
-        self.c_p['filename'] = (folder + '\RBC_experiment_no-' + str(self.experiment_idx) +'_A' +
-                                str(self.c_p['RBC_laser_currents'][idx][0]) + '-B' + 
-                                str(self.c_p['RBC_laser_currents'][idx][1]))
+        self.c_p['filename'] = (folder + '\particle_experiment_no-' + str(self.experiment_idx) +'_A' +
+                                str(self.c_p['power_protocol_currents'][idx][0]) + '-B' + 
+                                str(self.c_p['power_protocol_currents'][idx][1]))
         return
 
     def start_data_recording(self):
@@ -134,10 +133,10 @@ class LaserControllerWidget(QWidget):
             return
         self.OT_GUI.toggle_recording()
 
-    def set_currents_for_RBC(self):
-        self.current_A_edit_val = int(self.c_p['RBC_laser_currents'][self.experiment_idx][0])
-        self.current_B_edit_val = int(self.c_p['RBC_laser_currents'][self.experiment_idx][1])
-        self.time_interval = int(self.c_p['RBC_laser_currents'][self.experiment_idx][2])
+    def laser_power_currents(self):
+        self.current_A_edit_val = int(self.c_p['power_protocol_currents'][self.experiment_idx][0])
+        self.current_B_edit_val = int(self.c_p['power_protocol_currents'][self.experiment_idx][1])
+        self.time_interval = int(self.c_p['power_protocol_currents'][self.experiment_idx][2])
 
         self.laser_A_current_box.setValue(int(self.current_A_edit_val))
         self.laser_B_current_box.setValue(int(self.current_B_edit_val))
@@ -145,9 +144,9 @@ class LaserControllerWidget(QWidget):
         self.set_laser_B_current()
         sleep(0.05)
 
-    def RBC_auto_experiment(self):
-        self.toggle_experiment_button.setChecked(self.c_p['RBC_experiment_running'])
-        if not self.c_p['RBC_experiment_running']:
+    def laser_power_protocol(self):
+        self.toggle_experiment_button.setChecked(self.c_p['laser_power_protocol_running'])
+        if not self.c_p['laser_power_protocol_running']:
             if self.experiment_started:
                 self.stop_data_recording()
                 self.toggle_experiment_button.setChecked(False)
@@ -161,12 +160,12 @@ class LaserControllerWidget(QWidget):
             self.experiment_started = True
             self.experiment_start_time = time()
             self.current_power_start_time = time()
-            self.set_currents_for_RBC()
+            self.laser_power_currents()
             self.get_name(self.experiment_idx)
-            self.RBC_no += 1
+            self.particle_no += 1
             self.start_data_recording()
             
-        if self.c_p['program_running'] and self.c_p['RBC_experiment_running']:
+        if self.c_p['program_running'] and self.c_p['laser_power_protocol_running']:
             dt = time()-self.current_power_start_time
 
             # In the middle of the experiment, take a snapshot
@@ -179,13 +178,13 @@ class LaserControllerWidget(QWidget):
                 self.stop_data_recording()
                 self.current_power_start_time = time()
                 self.experiment_idx += 1
-                if self.experiment_idx >= len(self.c_p['RBC_laser_currents']):
+                if self.experiment_idx >= len(self.c_p['power_protocol_currents']):
                     print("Experiment done")
-                    self.c_p['RBC_experiment_running'] = False
+                    self.c_p['laser_power_protocol_running'] = False
                     self.experiment_started = False
                     self.toggle_experiment_button.setChecked(False)
                     return
-                self.set_currents_for_RBC()
+                self.laser_power_currents()
                 self.get_name(self.experiment_idx)
                 self.start_data_recording()
 
@@ -276,8 +275,8 @@ class LaserControllerWidget(QWidget):
         self.set_both_currents_button.clicked.connect(self.set_both_currents)
         self.laserB_layout.addRow("Set both currents", self.set_both_currents_button)
 
-        self.toggle_experiment_button = QPushButton("Toggle automatic RBC experiment", self)
-        self.toggle_experiment_button.clicked.connect(self.toggle_RBC_experiment)
+        self.toggle_experiment_button = QPushButton("Toggle automatic power changing experiment", self)
+        self.toggle_experiment_button.clicked.connect(self.toggle_laser_power_experiment)
         self.toggle_experiment_button.setCheckable(True)
         self.laserB_layout.addRow("Toggle experiment", self.toggle_experiment_button)
 
@@ -307,8 +306,8 @@ class LaserControllerWidget(QWidget):
     def set_current_B(self, current):
         self.current_B_edit_val = int(current)
 
-    def toggle_RBC_experiment(self):
-        self.c_p['RBC_experiment_running'] = not self.c_p['RBC_experiment_running']
+    def toggle_laser_power_experiment(self):
+        self.c_p['laser_power_protocol_running'] = not self.c_p['laser_power_protocol_running']
 
     def set_both_currents(self):
         self.set_laser_A_current()

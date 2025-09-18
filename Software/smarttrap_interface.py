@@ -576,7 +576,7 @@ class MainWindow(QMainWindow):
             )
 
         # Set up the motor controllers
-        from smart_trap_motors import ObjectiveMotor, SmartTrapMotor
+        from smarttrap_motors import ObjectiveMotor, SmartTrapMotor
 
         self.motor_controller = SmartTrapMotor(self.c_p, self.data_channels)
         
