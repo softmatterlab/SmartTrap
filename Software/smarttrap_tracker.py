@@ -234,7 +234,9 @@ class ObjectTrackerYOLO(ObjectTracker):
             return torch.load(network_name,map_location=self.device)
         except Exception as E:
             print("Could not loadz z-model")
+            # initialize a new model with random weights
+            print("Initializing new model with random weights")
+            model = ParticleCNN()
+            model.to(self.device)
             print(E)
-            return None
-
-
+            return model
