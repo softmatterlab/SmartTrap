@@ -2,6 +2,7 @@
 import cv2
 import torch
 import torch.nn as nn
+import yolov5
 from yolov5 import YOLOv5
 from ultralytics import YOLO
 import numpy as np
@@ -45,7 +46,11 @@ def load_yolov5_model(model_path):
 
     torch.load = _load  # monkey-patch
     try:
-        return torch.hub.load(".", "custom", path=model_path, source="local", force_reload=True)
+        # add the yolov5 folder path
+        yolopath = yolov5.__file__
+        yolopath = yolopath = yolopath[:yolopath.rfind('/')]
+        
+        return torch.hub.load(yolopath, "custom", path=model_path, source="local", force_reload=True)
     finally:
         torch.load = orig_load
     # model = torch.hub.load('.', 'custom', path=model_path, source='local') 
@@ -231,3 +236,4 @@ class ObjectTrackerYOLO(ObjectTracker):
             print("Could not loadz z-model")
             print(E)
             return None
+
