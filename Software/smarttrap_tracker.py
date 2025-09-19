@@ -231,9 +231,10 @@ class ObjectTrackerYOLO(ObjectTracker):
 
         torch.load = _load
         try:
-            return torch.load(network_name)
+            return torch.load(network_name,map_location=self.device)
         except Exception as E:
             print("Could not loadz z-model")
             print(E)
             return None
+
 
