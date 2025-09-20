@@ -24,8 +24,8 @@ The optical tweezers instrument is controlled by a custom electronics controller
 ### Circuit boards
 The 3 circuit boards of the controller are listed below.
 - PCB 1 - Microcontroller board: Hosts the microcontroller which is an Arduino Portenta H7. This board is connected to both the other boards and the host computer.
-- PCB 2 - Sensor board:
-- PCB 3 - Actuator board:
+- PCB 2 - Sensor board: This board connects to the various sensors, amplifying and digitizing the signals. Connected to the microcontroller board with a ribbon cable.
+- PCB 3 - Actuator board: Connects to the motors and piezo actuators which moves the sample stage as well as the laser positions. Connected to the microcontroller board with a ribbon cable.
 
 The Bill of Materials (BOM) files are in the [components folder](Components/) and the schematics of the boards can be found in [Instrument Schematics folder](<Instrument Schematics/>).
 
@@ -184,6 +184,7 @@ To assemble a chamber from the prepared material perform the following steps:
       <img src="Images/pipette_mounting.jpg" alt="mounting pipette" width="50%"/>
    3. Carefully raise the pipette puller to a standing position.
    4. Toggle the pipette pulling protocol in the pipette puller program. [Watch demo video](<Supplementary Videos/pipette pulling.mp4>)
+     NOTE: When a pipette is pulled two sharp ends are made, only the bottom part is used since the top is most often closed up completely. Therefore it needs to be cut off if the same capillary is used to make multiple pipettes. 
 
 5. Next, place the micropipette in the center of the chamber and the capillaries next to it. Pipette and the capillary openings should be near the central chamber’s center as shown in the picture.  
    <img src="Images/pipette_and_capillary_placement.jpg" alt="pipette and capillary placed" width="50%"/>
@@ -203,7 +204,19 @@ To assemble a chamber from the prepared material perform the following steps:
 11. Remove the chamber and let it cool off.
 
 ### Installing a chamber
-To install a chamber first take the sample holder from the 
+To install a chamber first take the sample holder from the system and remove the clamps before starting assembly.
+
+1. Align the chamber with the holder, ensuring that the holes of the chamber are centered at the holes of the holder.
+2. Gently mount the two chamber clamps. Keep a finger on the clamp while screwing to ensure an even pressure distribution.
+3. Put the pipette clamp into position and screw the screws halfway in.
+4. Put the pipette tubing under the clamp and thread the tubing around the pipette itself. Be careful so as not to break the pipette. Leave ca 5 mm of space betewen the top of the tubing and the chamber bottom.
+5. Tighten the pipette clamp.
+6. Add a drop UV-glue to the tip of the tubing.
+7. Cure the UV-glue using a UV-lamp.
+8. Install the microfluidics screw connectors.
+9. Connect the microfluidics tubing. Make sure the flow is directed so that the capillaries in the correct direction....
+10. Flow buffer into the chamber and make sure there are no bubbles. If there are bubbles in the chamber try to remove them by briefly increasing the flow.
+11. If the flow looks good, add a drop of water to the objectives of the system, push the objectives apart and put the chamber in its position as shown.
 
 ## Pipette puller
 When making chambers you need a micropipette. You can make these yourself from glass capillaries using the pipette puller described here. 
