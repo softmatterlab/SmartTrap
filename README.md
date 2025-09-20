@@ -195,7 +195,7 @@ To assemble a chamber from the prepared material perform the following steps:
 7. Place a coverslip without holes on top and align it with the bottom slide.
 
 8. Cut away any excess parafilm.  
-   <img src="Images/glass_and_excess_removal.jpg" alt="second parafilm" width="50%"/>
+   <img src="Images/glass_and_excess_removal.jpg" alt="excess parafilm removed" width="50%"/>
 
 9. Heat the chamber for ~4 minutes at 110 °C on the hotplate with a weight of ~400 g applied.
 
@@ -206,12 +206,12 @@ To assemble a chamber from the prepared material perform the following steps:
 ### Installing a chamber
 To install a chamber first take the sample holder from the system and remove the clamps before starting assembly.
 
-1. Align the chamber with the holder, ensuring that the holes of the chamber are centered at the holes of the holder.
-2. Gently mount the two chamber clamps. Keep a finger on the clamp while screwing to ensure an even pressure distribution.
+1. Align the chamber with the holder, ensuring that the holes of the chamber are centered at the holes of the holder. <img src="Images/ChamberOnHolder.png" alt="Chamber mounted" width="50%"/>
+2. Gently mount the two chamber clamps. Keep a finger on the clamp while screwing to ensure an even pressure distribution. <img src="Images/ScrewingInChamber.jpg" alt="Screwing in chamber" width="50%"/>
 3. Put the pipette clamp into position and screw the screws halfway in.
 4. Put the pipette tubing under the clamp and thread the tubing around the pipette itself. Be careful so as not to break the pipette. Leave ca 5 mm of space betewen the top of the tubing and the chamber bottom.
 5. Tighten the pipette clamp.
-6. Add a drop UV-glue to the tip of the tubing.
+6. Add a drop UV-glue to the tip of the tubing. You should be able to see a small amount of glue entering a few millimeters into the tubing. <img src="Images/chamberMountedWithGlue.png" alt="Chamber mounted and glued" width="65%"/>
 7. Cure the UV-glue using a UV-lamp.
 8. Install the microfluidics screw connectors.
 9. Connect the microfluidics tubing. Make sure the flow is directed so that the capillaries in the correct direction....
