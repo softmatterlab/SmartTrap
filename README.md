@@ -3,7 +3,8 @@
 ![Illustration of the SmartTrap system](Images/SystemIllustration.png)
 
 This GitHub page describes the SmartTrap system, including how to assemble and set up your own system.
-The system is described in our publication: <https://doi.org/10.48550/arXiv.2505.05290>
+The system is described in our publication: <https://doi.org/10.48550/arXiv.2505.05290> 
+The SmartTrap system is the first ... capable of running advanced experiments such as, single molecule force spectroscopy, autonomously for multiple hours. It can automatically trap particles and perform measurements.
 
 ## Hardware
 The SmartTrap system is based on the MiniTweezers optical tweezers instrument, details of which you can find here: <http://tweezerslab.unipr.it/cgi-bin/home.pl>
