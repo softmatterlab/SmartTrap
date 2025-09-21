@@ -1,12 +1,14 @@
 # This folder contains all the software needed for running the SmartTrap interface
 
-The different 
+The different modules handle different parts of the instrument controls.
 
 To use the software with other than the default devices (e.g. a camera from a different manufacuter) implement the protocol of the corresponding device. 
 These protocols need to be implemented for the different devices to work with the interface and the autonomous control functions. In the case of camera implement the "CameraProtocol" from camera_controls.py and update the create_controls function.
 
+Below we describe briefly the functionality of the different modules. More detailed descriptions are available in the separate modules and examples of how to use them are in the Examples folder.
+
 ## install_auto
-Run this file to install the packages used in the SmartTrap system.
+Run this file to install the packages used by the SmartTrap system.
 
 ## Main
 
@@ -20,12 +22,16 @@ This file contains the graphical user interface of the program.
 ### Using the software with other devices
 In the create_controllers function the different devices are connected. To use your own devices, create a new create_controllers functions.
 
-
 ## camera_controls
 Contains the classes used to interface the cameras and connect these to the user interface.
 Also has the functionality used to record videos.
 
 ## data_saver
+This module contains a thread saves data into files when prompted to. By running in a separate thread this limits the risk of the saving of large files interfering with other processes.
+
+## data_channels_viewer
+Contains the CurrentValueWindow class which is a PyQT widget that is used to monitor the various data channels, their current values and an rolling average of the current values.
+The widget can also be used to select which channels are saved when saving.
 
 ## Microfluidics controllers
 This file defines the interfaces used for the 3 different microfluidics control devices; the pump, the valves and the pipette pump.
@@ -75,9 +81,12 @@ This module defines a protocol for particle and pipette tracking (ObjectTracker)
 
 This provides both the interface layer and a test harness for integrating tracking models into the larger system.
 
-# SmartTrap specific files
+# SmartTrap minitweezers instrument specific files
 Certain devices are specific to the SmartTrap system and thus rely on the specific hardware, e.g. specific microfluidics pump.
 To use these devices they implement the protocols specified in the above files.
+
+## smarttrap_driver
+This module contains the classes that handles communications to and from the SmartTrap electronics controller. Specifically a class which only handles the serial communications running in a separate process and a monitoring thread which parses the commands sent to and from the instrument. During operation both these are running continously.
 
 ## basler_cameras
 Contains the BaslerCamera class which is an implementaion of the CameraProtocol which can be used with cameras from Basler.
@@ -88,4 +97,17 @@ Contains the ThorlabsScientificCamera class which is an implementaion of the Cam
 To use this you need to have the thorlabs scientific camera sdk installed see <https://www.thorlabs.com/software_pages/ViewSoftwarePage.cfm?Code=ThorCam>
 
 ## elvesys_pump
+Contains an implementation of the microfluidics controllers that work with the OB1 micrfluidics controller from elvesys as well as their microfluidics valve.
 
+## OSTech_laser_controller
+Implementations of the lasercontroller that work with laser current drivers from OSTech.
+
+## smarttrap_tracker
+The default tracking used in the SmartTrap system. Here the real-time tracking interfaces is implemented to work with yolov5 and the convoluitonal neural network that monitors the z-position.
+
+
+
+
+
+
+## SmartTrap driver
