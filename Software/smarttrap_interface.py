@@ -661,6 +661,7 @@ class MainWindow(QMainWindow):
             sleep(0.1)
             
         except Exception as E:
+            print("Warning could not connect to instrument controller.")
             print(E)
 
         self.video_writer_thread = VideoWriterThread(2, 'video thread', self.c_p)

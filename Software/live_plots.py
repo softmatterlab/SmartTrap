@@ -235,7 +235,115 @@ class PlotAxisWindow(QWidget):
 
 
 class PlotWindow(QMainWindow):
-    
+    """
+    Interactive real-time plotting window based on PyQt6 and pyqtgraph.
+
+    The window supports multiple simultaneous traces, configurable
+    subsampling/averaging, per-trace styles, and manual axis control. Data
+    is streamed from a user-provided mapping of channel objects, which are
+    queried periodically by a QTimer loop.
+
+    Parameters
+    ----------
+    c_p : dict
+        Shared configuration/state dictionary. Must include at least:
+            - 'program_running' : bool
+                Used to stop plotting when the program exits.
+            - 'single_sample_channels' : list # TODO remove this
+                Identifiers of channels that are single-sample rate, used to
+                adjust averaging between x and y.
+    data : dict[str, object]
+        Mapping from channel names to data providers. Each provider must
+        expose:
+            - `.get_data(n, offset=0)` or `.get_data_spaced(n, step)`
+            - `.unit` : str
+                Unit string for axis labeling.
+            - `.index` : int
+                Current data index (used for averaging alignment).
+    x_keys : list[str]
+        Keys in `data` to be used for x-axes of initial plots.
+    y_keys : list[str]
+        Keys in `data` to be used for y-axes of initial plots.
+    aspect_locked : bool, optional
+        If True, lock the x and y aspect ratio. Default is False.
+    grid_on : bool, optional
+        If True, display grid lines. Default is False.
+    title : str, optional
+        Window title. Default is "Data plotter".
+    default_plot_length : int, optional
+        Default number of data points shown per plot. Default is 5000.
+
+    UI Elements
+    -----------
+    • Central pyqtgraph.PlotWidget with legend.  
+    • Toolbar actions:
+        - Pause/resume live plotting.
+        - Add new plots dynamically.
+        - Manual axis adjustment.
+        - Toggle aspect ratio lock.
+        - Toggle central reference circle.
+    • Menu bar:
+        - Background color presets.
+        - Per-plot submenus for color, symbol, averaging, subsample length,
+          axis data source, and deletion.
+
+    Notes
+    -----
+    - Plot data metadata is stored in `self.plot_data`, containing
+      `x`, `y`, `pen`, `L` (length), `sub_sample`, and `averaging`.
+    - Each plot is represented by both a line (`self.data_lines`) and
+      a point marker (`self.data_point_markers`) showing the latest sample.
+    - The update loop runs every 50 ms by default (`QTimer` interval).
+    - Averaging is handled via `non_overlapping_average`, which reduces
+      data resolution by chunking.
+
+    Methods
+    -------
+    add_plot(xname, yname)
+        Add a new trace to the window.
+    delete_plot(plot_idx)
+        Remove an existing trace and its metadata.
+    create_plot_menus()
+        Rebuild the menu bar based on current plots.
+    update_plot_data()
+        Update all traces from the `data` sources.
+    lock_aspect_ratio()
+        Toggle aspect ratio locking.
+    add_circle()
+        Add or toggle a central reference circle.
+    set_axis_labels()
+        Update axis labels based on the first trace.
+    set_plot_color(color, idx)
+        Change the line color of a trace.
+    set_symbol_color(color, idx)
+        Change the marker symbol color of a trace.
+    toggle_averaging(plot_idx)
+        Toggle averaging on or off for a trace.
+    create_plot_length_window(idx)
+        Open a dialog to adjust the number of points shown for a trace.
+    create_plot_subsampler_window(idx)
+        Open a dialog to adjust subsampling/averaging length for a trace.
+    open_plot_axis_window()
+        Open a dialog to manually adjust axis limits.
+    toggle_live_plotting()
+        Pause or resume live updates.
+    set_x_data(idx, x_key)
+        Change the x-axis data source of a trace.
+    set_y_data(idx, y_key)
+        Change the y-axis data source of a trace.
+
+    Example
+    -------
+    >>> c_p = {"program_running": True, "single_sample_channels": []}
+    >>> data = {
+    ...     "T_time": DummyChannel(unit="s"),
+    ...     "Signal": DummyChannel(unit="a.u."),
+    ... }
+    >>> win = PlotWindow(c_p, data, ["T_time"], ["Signal"])
+    >>> win.show()
+    """
+
+
     # NOTE there was a bug in pyqtgraph 0.12.3 which made the window
     # crash when setting back auto zoom on the axis
     

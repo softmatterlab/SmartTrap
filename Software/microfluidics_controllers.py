@@ -1,18 +1,121 @@
-from typing import Protocol, runtime_checkable, Mapping
+"""
+Microfluidics Hardware Abstraction & UI
+
+This module defines protocol interfaces (hardware abstraction layer) for a
+microfluidics system—pressure controller, valve controller, and pipette pump—
+along with lightweight test (mock) implementations, a real-time monitor thread,
+and Qt widgets for configuration and live control.
+
+Contents
+--------
+Protocols
+    MicrofluidicsController
+        Interface for multi-channel pressure controllers
+        (connect/disconnect, set/get pressure, channel count).
+    ValveController
+        Interface for valve arrays (connect, connection status, toggle valve,
+        read states).
+    PipettePump
+        Interface for pipette pump PSUs (connect/disconnect, power control,
+        suction on/off, status).
+
+Test (mock) implementations
+    TestMicrofluidicsController
+        3-channel in-memory pressure controller; 1-based channel indexing,
+        pressure range 0–2000 mbar.
+    TestValveController
+        In-memory valve state map with connect/toggle/query methods.
+    TestPipettePump
+        In-memory PSU with % power setting and suction state.
+
+Realtime monitor
+    MicrofluidicsMonitorThread
+        QThread that synchronizes target ↔ measured pressures, valve states,
+        and pipette pump power/suction with a shared config dict `c_p`.
+        Emits `progress(list)` after each 500 ms cycle.
+
+Qt widgets
+    ConfigurePumpWidget
+        Form for assigning fluidics channels/valves and per-channel max
+        pressures for autonomous procedures (writes to `c_p`).
+    MicrofluidicsControllerWidget
+        Live control panel: per-channel pressure set/read, valve toggles, and
+        pipette pump PSU controls. Spawns `MicrofluidicsMonitorThread` and
+        auto-refreshes every 500 ms.
+
+Shared state (c_p)
+------------------
+The monitoring thread and widgets cooperate via a shared dictionary `c_p`.
+Expected keys (minimum; extend as needed):
+    - 'program_running' : bool
+    - 'current_pressures' : Sequence[float]      # per channel, mbar
+    - 'target_pressures'  : Sequence[float]      # per channel, mbar
+    - 'valves_used'       : Sequence[int]
+    - 'valves_open'       : Mapping[int, bool]
+    - 'pipette_pump_on'           : bool
+    - 'pipette_pump_target_power' : float        # PSU setpoint (e.g., V or %)
+    - 'pipette_pump_current_power': float
+    - For ConfigurePumpWidget:
+        * 'capillary_1_fluidics_channel' : [channel_idx, max_mbar, valve_idx]
+        * 'capillary_2_fluidics_channel' : [channel_idx, max_mbar, valve_idx]
+        * 'central_fluidics_channel'     : [channel_idx, max_mbar, valve_idx]
+
+Notes
+-----
+- Pressure channels use 1-based indexing on the controller (0 and 1 may map to
+  the same channel on some devices).
+- The monitor loop is fixed at 500 ms; adjust in `MicrofluidicsMonitorThread.run`.
+- Test classes are drop-in for UI and logic development without hardware.
+
+Quick start
+-----------
+>>> c_p = {
+...     'program_running': True,
+...     'current_pressures': [0.0, 0.0, 0.0],
+...     'target_pressures':  [0.0, 0.0, 0.0],
+...     'valves_used': [0, 1],
+...     'valves_open': {0: False, 1: True},
+...     'pipette_pump_on': False,
+...     'pipette_pump_target_power': 0.0,
+...     'pipette_pump_current_power': 0.0,
+...     'capillary_1_fluidics_channel': [0, 800.0, 0],
+...     'capillary_2_fluidics_channel': [1, 800.0, 1],
+...     'central_fluidics_channel':     [2, 800.0, 2],
+... }
+>>> pump   = TestMicrofluidicsController()
+>>> valves = TestValveController()
+>>> psu    = TestPipettePump()
+>>> pump.connect(); valves.connect(); psu.connect()
+>>> monitor_widget = MicrofluidicsControllerWidget(c_p, pump, valves, psu)  # Qt context required
+"""
+
+from typing import Protocol, runtime_checkable
 
 from PyQt6.QtWidgets import QSpinBox, QDoubleSpinBox, QPushButton, QVBoxLayout, QWidget, QLabel
 from PyQt6.QtGui import QPalette, QColor
 from PyQt6.QtCore import QThread, pyqtSignal, QTimer
-from typing import Mapping
-from enum import Enum
-
-
-# class ValveState(Enum):
-#     CLOSED = 0
-#     OPEN = 1
 
 @runtime_checkable
 class MicrofluidicsController(Protocol):
+    """
+    Protocol defining the interface for microfluidics pressure controllers.
+
+    Any implementation must provide connection handling, pressure control
+    per channel, and a way to query the number of available channels.
+
+    Methods
+    -------
+    connect() -> None
+        Establish connection to the controller.
+    disconnect() -> None
+        Close connection to the controller.
+    set_pressure(channel: str, value_kpa: float) -> None
+        Set the pressure of a given channel in kilopascals.
+    get_pressure(channel: str) -> float
+        Return the current measured pressure for a given channel.
+    get_number_channels() -> int
+        Return the number of pressure channels supported by the controller.
+    """
     def connect(self) -> None: ...
     def disconnect(self) -> None: ...
     def set_pressure(self, channel: str, value_kpa: float) -> None: ...
@@ -22,6 +125,23 @@ class MicrofluidicsController(Protocol):
 
 @runtime_checkable
 class ValveController(Protocol):
+    """
+    Protocol defining the interface for valve array controllers.
+
+    Implementations must handle connection state, switching individual valves,
+    and querying the state of all valves.
+
+    Methods
+    -------
+    connect(address: str | None = None) -> None
+        Establish connection to the valve controller, optionally at a given address.
+    is_connected() -> bool
+        Return True if the controller is connected.
+    toggle_valve(valve_id: str, state: int) -> None
+        Set a valve to a given state (typically 0 = closed, 1 = open).
+    get_valve_states() -> list[int]
+        Return the current states of all valves as a list of integers.
+    """
     def connect(self, address: str | None = None) -> None: ...
     def is_connected(self) -> bool: ...
     def toggle_valve(self, valve_id: str, state: int) -> None: ...
@@ -30,6 +150,31 @@ class ValveController(Protocol):
 
 @runtime_checkable
 class PipettePump(Protocol):
+    """
+    Protocol defining the interface for pipette pump power supplies.
+
+    Provides methods for connection management, power control, and
+    activation/deactivation of suction.
+
+    Methods
+    -------
+    connect(address: str | None = None) -> None
+        Establish connection to the pipette pump, optionally at a given address.
+    disconnect() -> None
+        Close connection to the pump.
+    is_connected() -> bool
+        Return True if the pump is connected.
+    set_power(power: float) -> None
+        Set the pump PSU output voltage.
+    get_power() -> float
+        Return the current PSU output voltage.
+    activate_suction() -> float
+        Enable suction mode and return the resulting power level.
+    deactivate_suction() -> float
+        Disable suction mode and return the resulting power level.
+    suction_active() -> bool
+        Return True if suction is currently active.
+    """
     def connect(self, address: str | None = None) -> None: ...
     def disconnect(self) -> None: ...
     def is_connected(self) -> bool: ...
@@ -40,6 +185,56 @@ class PipettePump(Protocol):
     def suction_active(self) -> bool: ...
 
 class TestMicrofluidicsController(MicrofluidicsController):
+
+    """
+    Minimal mock implementation of a microfluidics pump controller.
+
+    This class simulates a multi-channel microfluidics pressure controller
+    without requiring hardware. It exposes the same interface as a real
+    controller, enabling testing and development of UI or logic that depends
+    on a pump backend.
+
+    Parameters
+    ----------
+    None
+
+    Attributes
+    ----------
+    connected : bool
+        Whether the controller is currently marked as connected.
+    num_channels : int
+        Number of simulated pressure channels. Defaults to 3.
+    pressures : list[float]
+        Current simulated pressures for each channel, in mbar.
+    verbose : bool
+        If True, pressure changes are printed to stdout.
+
+    Methods
+    -------
+    connect(address=None)
+        Mark the controller as connected. Prints a message to stdout.
+    disconnect()
+        Mark the controller as disconnected. Prints a message to stdout.
+    set_pressure(channel, pressure)
+        Set the pressure (mbar) of a specific channel. Channel indices
+        are 1-based. Valid range is [0, 2000] mbar.
+    get_pressure(channel)
+        Get the pressure (mbar) of a specific channel. Channel indices
+        are 1-based.
+    get_number_channels()
+        Return the number of available channels.
+
+    Example
+    -------
+    >>> ctrl = TestMicrofluidicsController()
+    >>> ctrl.connect()
+    Connected to test pump controller
+    >>> ctrl.set_pressure(1, 500)
+    >>> ctrl.get_pressure(1)
+    500
+    >>> ctrl.disconnect()
+    Disconnected from test pump controller
+    """
     def __init__(self):
         self.connected = False
         self.num_channels = 3
@@ -78,10 +273,54 @@ class TestMicrofluidicsController(MicrofluidicsController):
 
 
 class TestValveController(ValveController):
+    """
+    Minimal mock implementation of a valve controller for testing and development.
+
+    This class simulates a valve controller without requiring hardware. It
+    maintains internal valve states in a dictionary and provides the same
+    interface as a real controller, making it useful for unit tests or
+    development on systems without connected hardware.
+
+    Parameters
+    ----------
+    None
+
+    Attributes
+    ----------
+    connected : bool
+        Whether the controller is currently marked as connected.
+    valve_states : dict[int, bool]
+        Mapping of valve indices to their states (True = open, False = closed).
+    verbose : bool
+        If True, state changes are printed to stdout.
+
+    Methods
+    -------
+    connect(address=None)
+        Mark the controller as connected. Prints a message to stdout.
+    is_connected()
+        Return True if the controller is marked as connected.
+    toggle_valve(valve_id, state)
+        Set the state of a valve. Requires the controller to be connected.
+        If verbose, prints the updated state.
+    get_valve_states()
+        Return a dictionary of the current valve states. Requires the
+        controller to be connected.
+
+    Example
+    -------
+    >>> vc = TestValveController()
+    >>> vc.connect()
+    Connected to test valve controller
+    >>> vc.toggle_valve(0, True)
+    >>> vc.get_valve_states()
+    {0: True}
+    """
+
 
     def __init__(self):
         self.connected = False
-        self.valve_states = {}
+        self.valve_states = {} # TODO extend this a little
         self.verbose = False
 
     def connect(self, address=None):
@@ -155,6 +394,79 @@ class TestPipettePump(PipettePump):
             print(f"Deactivated suction")
 
 class MicrofluidicsMonitorThread(QThread):
+    """
+    Background worker thread for continuous synchronization of the
+    microfluidics system state.
+
+    The monitor loop periodically sets channel pressures to their target
+    values, reads back measured pressures, updates valve states, and manages
+    the pipette pump PSU if present. Updates are pushed to the UI/main thread
+    via Qt signals.
+
+    Signals
+    -------
+    finished : pyqtSignal()
+        Emitted once the monitoring loop exits cleanly.
+    progress : pyqtSignal(list)
+        Emitted after each update cycle with the list of current pressures.
+
+    Parameters
+    ----------
+    microfluidicsController : object
+        Controller for the pressure channels. Must implement
+        ``get_number_channels()``, ``set_pressure(channel, value)``,
+        and ``get_pressure(channel)``.
+    valve_controller : object
+        Controller for the valve array. Must implement
+        ``is_connected()`` and ``toggle_valve(index, state)``.
+    c_p : dict
+        Shared configuration/state dictionary. Expected keys (minimum):
+            - 'program_running' : bool
+                Controls whether the monitor loop is active.
+            - 'target_pressures' : Sequence[float]
+                Target pressure per channel (mbar).
+            - 'current_pressures' : Sequence[float]
+                Current measured pressures, updated in-place (mbar).
+            - 'valves_used' : Sequence[int]
+                Indices of valves to monitor/control.
+            - 'valves_open' : Mapping[int, bool]
+                Valve index → open (True) / closed (False).
+            - 'pipette_pump_target_power' : float
+                Target output voltage of the pipette pump PSU (V).
+            - 'pipette_pump_current_power' : float
+                Live measured PSU output voltage (V).
+            - 'pipette_pump_on' : bool
+                Power state of the pipette pump PSU.
+    pipette_pump : object, optional
+        Pipette pump PSU interface. Must implement
+        ``is_connected()``, ``set_power(value)``, ``get_power()``,
+        ``activate_suction()``, and ``deactivate_suction()``.
+
+    Notes
+    -----
+    - The monitoring loop runs at a fixed interval of 500 ms
+      (see ``QThread.msleep(500)``).
+    - Pressures are applied with 1-based channel indexing
+      (``channel+1``) due to controller-specific convention.
+    - If a pressure set/get fails, the exception is caught and the
+      corresponding channel is set to 0 mbar.
+    - All updates to shared state are performed in-place on ``c_p``.
+    - Emits :pyattr:`progress` after each cycle with the current pressures,
+      which can be connected to UI elements for live updates.
+
+    Methods
+    -------
+    set_pressures()
+        Apply target pressures from ``c_p['target_pressures']`` to all channels.
+    get_pressures()
+        Read current pressures from the controller into
+        ``c_p['current_pressures']``.
+    check_pipette_pump()
+        Update pipette pump PSU state (power, on/off) based on ``c_p``.
+    run()
+        Main loop: update pressures, valves, and pipette pump every 500 ms.
+    """
+
     # Define signals to communicate with the main thread
     finished = pyqtSignal()
     progress = pyqtSignal(list)
@@ -165,9 +477,11 @@ class MicrofluidicsMonitorThread(QThread):
         self.c_p = c_p
         self.pipette_pump = pipette_pump
         self.valve_controller = valve_controller
-        # self.valve_controller.connect(adress=self.c_p['valve_adress'])
 
     def set_pressures(self):
+        """
+        Sets the pressures of all the channels to the target values in target_pressures.
+        """
 
         for channel in range(self.microfluidicsController.get_number_channels()):
             # Indexing starts at 1 in the controller. Also 0 and 1 map to the same channel.
@@ -200,11 +514,9 @@ class MicrofluidicsMonitorThread(QThread):
             self.get_pressures()
 
             # Set the valves to the correct state
-            # self.c_p['valves_controller_connected'] = self.valve_controller.valve_connected
             if self.valve_controller.is_connected():
                 for index in self.c_p['valves_used']:                    
                     self.valve_controller.toggle_valve(index, self.c_p['valves_open'][index])
-                # self.c_p['valve_controller'].set_valve_states() # Not needed?
             
             if self.pipette_pump is not None and self.pipette_pump.is_connected():
                 self.check_pipette_pump()
@@ -213,7 +525,7 @@ class MicrofluidicsMonitorThread(QThread):
         self.finished.emit()
 
 
-class ConfigurePumpWidget(QWidget):
+class ConfigurePumpWidget(QWidget): # TODO move this to the autocontroller 
     """
     Widget used to change the settings of the fluidics channels. Specifically to
     configure for the autonomous system which channels contain which particles and what
@@ -231,6 +543,9 @@ class ConfigurePumpWidget(QWidget):
         self.initUI()
 
     def initUI(self):
+        """
+        Initiates the various user interface components
+        """
         self.layout = QVBoxLayout()
         self.setWindowTitle("Configure Pump")
         self.capillary_1_label = QLabel("Capillary 1")
@@ -313,31 +628,132 @@ class ConfigurePumpWidget(QWidget):
 
     def set_capillary_1_channel(self, channel):
         self.c_p['capillary_1_fluidics_channel'][0] = int(channel-1)
+
     def set_capillary_2_channel(self, channel):
         self.c_p['capillary_2_fluidics_channel'][0] = int(channel-1)
+
     def set_main_channel(self, channel):
         self.c_p['central_fluidics_channel'][0] = int(channel-1)
 
     def set_capillary_1_flow_pressure(self, pressure):
         self.c_p['capillary_1_fluidics_channel'][1] = float(pressure)
+
     def set_capillary_2_flow_pressure(self, pressure):
         self.c_p['capillary_2_fluidics_channel'][1] = float(pressure)
+
     def set_main_flow_pressure(self, pressure):
         self.c_p['central_fluidics_channel'][1] = float(pressure)
 
     def set_capillary_1_valve(self, valve):
         self.c_p['capillary_1_fluidics_channel'][2] = int(valve)
+
     def set_capillary_2_valve(self, valve):
         self.c_p['capillary_2_fluidics_channel'][2] = int(valve)
+
     def set_main_valve(self, valve):
         self.c_p['central_fluidics_channel'][2] = int(valve)
     
-    
+
 class MicrofluidicsControllerWidget(QWidget):
     """
-    A widget for controlling the microfluidics system. Will automatically
-    create buttons to control each of the channels in the system.
+    Qt widget for interactive control and monitoring of a microfluidics setup.
+
+    The widget auto-generates channel controls from the connected controller,
+    provides live readout of measured pressures, and exposes toggles for
+    external peripherals (valves and a pipette pump PSU). A background monitor
+    thread keeps the UI in sync with hardware state, while a timer periodically
+    refreshes the view.
+
+    Parameters
+    ----------
+    c_p : dict
+        Shared configuration/state dictionary used for both UI and back-end control.
+        Expected keys (minimum):
+            - 'current_pressures' : Sequence[float]
+                Latest measured pressure per channel (mbar).
+            - 'target_pressures' : Sequence[float]
+                Target pressure per channel (mbar) set by the UI.
+            - 'valves_used' : Sequence[int]
+                Indices of valves that should be displayed/controlled.
+            - 'valves_open' : Mapping[int, bool]
+                Valve index → open (True) / closed (False).
+            - 'pipette_pump_current_power' : float
+                Currently measured output voltage of the pipette pump PSU (V).
+            - 'pipette_pump_target_power' : float
+                Target output voltage for the pipette pump PSU (V).
+            - 'pipette_pump_on' : bool
+                Power state of the pipette pump PSU.
+    microfluidicsController : object, optional
+        Controller providing access to the pressure channels. Must implement
+        ``get_number_channels() -> int`` and be compatible with
+        ``MicrofluidicsMonitorThread``.
+    valve_controller : object, optional
+        Low-level controller for valves, used by the monitor thread to read/update state.
+    pipette_pump : object, optional
+        Pipette pump PSU interface. Expected to support
+        ``disconnect_from_psu()`` and be compatible with the monitor thread.
+
+    UI Elements
+    -----------
+    • Per-channel controls:
+        - QDoubleSpinBox (0–2000 mbar, step 0.1) to set target pressure.
+        - QLabel displaying live measured pressure: ``"Pressure {x} mbar"``.
+    • Pipette pump PSU:
+        - QDoubleSpinBox (0–12 V, step 0.1) for target voltage.
+        - Checkable QPushButton to toggle PSU on/off.
+    • Valves:
+        - One checkable QPushButton per valve in ``valves_used``.
+          Red = closed, Green = open.
+
+    Notes
+    -----
+    - Starts a ``MicrofluidicsMonitorThread`` that emits ``progress`` updates to
+      synchronize ``c_p['current_pressures']``, ``c_p['target_pressures']``,
+      valve states, and pump power.
+    - A QTimer (500 ms) calls :meth:`refresh` to mirror external state changes
+      in the UI without user interaction.
+    - Background color is set to a light lavender for quick visual identification.
+    - The widget calls ``show()`` during initialization.
+
+    Methods
+    -------
+    create_channel_controls()
+        Build per-channel labels, spin boxes, and readouts from the controller.
+    update_pressures(values)
+        Update pressure labels and sync spin boxes with ``c_p['target_pressures']``.
+    set_pressure(channel, pressure)
+        Set target pressure for a channel in ``c_p``.
+    toggle_valve(valve_index)
+        Toggle the state of a valve in ``c_p['valves_open']``.
+    set_pipette_pump_power(value)
+        Set target PSU voltage in ``c_p['pipette_pump_target_power']``.
+    toggle_pipette_pump()
+        Update ``c_p['pipette_pump_on']`` from the toggle button state.
+    refresh()
+        Pull external state from ``c_p`` to the UI (pump power, on/off, valves).
+    closeEvent(event)
+        Accept close and disconnect ``pipette_pump`` from PSU.
+
+    Example
+    -------
+    >>> c_p = {
+    ...     'current_pressures': [0.0, 0.0, 0.0, 0.0],
+    ...     'target_pressures':  [0.0, 0.0, 0.0, 0.0],
+    ...     'valves_used': [0, 2],
+    ...     'valves_open': {0: False, 2: True},
+    ...     'pipette_pump_current_power': 0.0,
+    ...     'pipette_pump_target_power':  0.0,
+    ...     'pipette_pump_on': False,
+    ... }
+    >>> widget = MicrofluidicsControllerWidget(
+    ...     c_p,
+    ...     microfluidicsController=my_controller,
+    ...     valve_controller=my_valves,
+    ...     pipette_pump=my_psu
+    ... )
+    >>> widget.show()
     """
+
 
     def __init__(self, c_p, microfluidicsController=None, valve_controller=None, pipette_pump=None):
         super().__init__()
@@ -349,7 +765,6 @@ class MicrofluidicsControllerWidget(QWidget):
         pal = self.palette()
         pal.setColor(QPalette.ColorRole.Window, QColor(225, 225, 250))
         self.setPalette(pal)
-
 
         self.initUI()
         self.pipette_pump = pipette_pump 

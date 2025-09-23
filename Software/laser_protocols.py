@@ -407,6 +407,7 @@ class ForceLimitProtocol(ExperimentLaserProtocol):
                 else:
                     self.c_p['protocol_data'][0] = 11
         else:
+            # TODO complete this
             self.c_p['portenta_command_2'] == 2
             self.current_force = np.mean(self.data_channels['F_total_X'].get_data(100))
             if self.c_p['portenta_command_2'] == 1: # A is being autoaligned
@@ -471,12 +472,12 @@ class PushAndWaitProtocol(ExperimentLaserProtocol):
             upper_pos_limit = self._params[1]
         if parameters[2] is not None:
             self._params[2] = parameters[2]
+        
+        if parameters[3]>0:
+            self._params[3] = parameters[3]
 
-        if lower_pos_limit < upper_pos_limit:
-            self._params[0] = lower_pos_limit
-            self._params[1] = upper_pos_limit
-        else:
-            print("Parameters not accepted")
+        self._params[0] = lower_pos_limit
+        self._params[1] = upper_pos_limit
 
     def get_parameters(self) -> None:
         return [self._params[0], self._params[1], self._params[2], self._params[3]]
@@ -492,7 +493,7 @@ class PushAndWaitProtocol(ExperimentLaserProtocol):
         tooltip_2 = ("Speed of movement in nm/s")
         tooltip_3 = ("The duration during which the particles will wait while pushing (after pushing force was reached)")
 
-        return [tooltip_0, tooltip_1, tooltip_2,tooltip_3]
+        return [tooltip_0, tooltip_1, tooltip_2, tooltip_3]
     
     def get_parameter_descriptions(self) -> List[str]:
         description_0 = "Pushing force limit" 
@@ -527,11 +528,6 @@ class PushAndWaitProtocol(ExperimentLaserProtocol):
         
         """
         
-        print(f"Running protocol yeah {np.random.randint(0,100)}")
-        return 
-
-        if (not self.toggle_protocol_button.isChecked()) and self.entanglement_protocol_running:
-            self.toggle_protocol_button.setChecked(True)
         
         if self.entanglement_step == 'waiting':
             if time() - self.entanglement_start_time > self.entanglement_wait_time:

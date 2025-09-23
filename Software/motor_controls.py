@@ -15,11 +15,33 @@ import numpy as np
 @runtime_checkable
 class Motor(Protocol):
     """
-    Generic N-axis motor stage.
+    Protocol for an 3-axis motorized stage.
 
-    Conventions:
-    - Positions are sequences of floats: len(position) == number of axes.
-    - Velocities are passed as varargs: move_at_speed(vx, vy, [vz, ...]).
+    Implementations must expose basic kinematics (absolute move, velocity move),
+    speed control, position readout, motion state, and stop.
+
+    Conventions
+    -----------
+    - Positions are sequences of floats with length equal to the number of axes.
+    - Velocity commands are passed as varargs, e.g. ``move_at_speed(vx, vy[, vz, ...])``.
+    - Units are implementation-defined; by convention ``set_speed`` uses microns/s.
+
+    Methods
+    -------
+    set_speed(mm_per_s: float) -> None
+        Set the nominal stage speed (per-axis moves scale from this).
+    get_speed() -> float
+        Return the current nominal speed.
+    move_to_location(position: Sequence[float]) -> None
+        Move to an absolute multi-axis position.
+    move_at_speed(*v: float) -> None
+        Command a constant-velocity move with per-axis components.
+    get_position() -> Sequence[float]
+        Return the current multi-axis position.
+    stop_moving() -> None
+        Halt all motion immediately/safely.
+    is_moving() -> bool
+        Return True if any axis is currently in motion.
     """
     # TODO add connect function
     def set_speed(self, mm_per_s: float) -> None: ...
@@ -35,6 +57,27 @@ class Motor(Protocol):
 
 @runtime_checkable
 class ObjectiveMovement(Protocol):
+    """
+    Protocol for coarse/fine objective motion relative to the sample.
+
+    Intended for microscope objective actuators that offer discrete speed
+    presets in the approach/withdraw directions e.g. stepper motors.
+
+    Methods
+    -------
+    connect() -> None
+        Establish connection to the actuator.
+    is_connected() -> bool
+        Return True if the actuator is connected.
+    slow_towards_sample() -> None
+        Move slowly towards the sample.
+    slow_away_from_sample() -> None
+        Move slowly away from the sample.
+    fast_towards_sample() -> None
+        Move quickly towards the sample.
+    fast_away_from_sample() -> None
+        Move quickly away from the sample.
+    """
     def connect(self) -> None: ...
     def is_connected(self) -> bool: ...
     def slow_towards_sample(self) -> None: ...
@@ -45,6 +88,47 @@ class ObjectiveMovement(Protocol):
 
 
 class TestMotorController(Motor):
+    """
+    Minimal motor controller for testing.
+
+    Simulates a 3-axis stage with position state and a nominal speed. All
+    motions are instantaneous except for ``move_at_speed``, which integrates a
+    one-second step for demonstration.
+
+    Attributes
+    ----------
+    speed : float
+        Nominal speed (default 10.0; capped at 100.0 in ``set_speed``).
+    x_pos, y_pos, z_pos : float
+        Current simulated positions.
+
+    Methods
+    -------
+    set_speed(speed)
+        Set the nominal speed; values > 100 are clipped to 100.
+    get_speed()
+        Return the current nominal speed.
+    move_to_location(position)
+        Instantly set (x, y, z) to the provided absolute position.
+    move_at_speed(x_speed, y_speed, z_speed=0)
+        Advance the position by 1 s worth of the given per-axis speeds.
+    get_x_position(), get_y_position(), get_z_position()
+        Convenience accessors for per-axis positions.
+    stop_moving()
+        Print a stop message (no internal state change).
+    is_moving()
+        Always returns False (no background motion simulation).
+
+    Example
+    -------
+    >>> m = TestMotorController()
+    >>> m.set_speed(50)
+    >>> m.move_to_location([0, 0, 0])
+    >>> m.move_at_speed(1, -2, 0.5)  # integrates ~1 s step
+    >>> m.get_speed(), (m.get_x_position(), m.get_y_position(), m.get_z_position())
+    (50.0, (1.0, -2.0, 0.5))
+    """
+
     def __init__(self):
         self.speed = 10.0
         self.x_pos = 0
@@ -88,6 +172,38 @@ class TestMotorController(Motor):
         self.z_pos += z_speed * 1
 
 class TestObjectiveMovement(ObjectiveMovement):
+    """
+    Minimal objective actuator for testing.
+
+    Provides connect status and prints actions for slow/fast moves in the
+    towards/away directions. No physical motion is performed.
+
+    Attributes
+    ----------
+    connected : bool
+        Connection flag toggled by ``connect``.
+
+    Methods
+    -------
+    connect(adress)   # sic: parameter name kept for compatibility
+        Mark the actuator as connected and print the address.
+    is_connected()
+        Return the connection flag.
+    slow_towards_sample(), slow_away_from_sample()
+        Print slow movement direction.
+    fast_towards_sample(), fast_away_from_sample()
+        Print fast movement direction.
+
+    Example
+    -------
+    >>> obj = TestObjectiveMovement()
+    >>> obj.connect("COM3")
+    Connected to objective at COM3
+    >>> obj.fast_towards_sample()
+    Moving fast towards sample
+    >>> obj.is_connected()
+    True
+    """
     def __init__(self):
         self.connected = False
 
@@ -112,8 +228,77 @@ class TestObjectiveMovement(ObjectiveMovement):
 
 class MotorControllerWindow(QWidget):
     """
-    Widget for controlling the motors moving the sample stage. Allows for changing the 
-    speed of the motors and moving them in the x and y direction.
+    Qt widget for manual control of a motorized sample stage.
+
+    The widget provides interactive controls to set motor speed and to move
+    the stage along the x, y, and z axes using either buttons or keyboard controls. 
+
+    Parameters
+    ----------
+    c_p : dict TODO remoe from here
+        Shared configuration/state dictionary. Expected keys (minimum):
+            - 'blue_led' : int
+                State of the sample illumination LED.
+                Convention: 0 = ON, 1 = OFF.
+    motor_controller : Motor
+        Motor controller interface. Must implement:
+            - ``get_speed() -> float``
+            - ``set_speed(value: float)``
+            - ``move_at_speed(x: float, y: float, z: float)``
+            - ``stop_moving()``
+
+    UI Elements
+    -----------
+    • Speed control:
+        - QLabel showing speed units (µm/s).
+        - QLineEdit for setting motor speed with validation (0–100 µm/s).
+        - Preset QPushButtons for 1, 10, and 100 µm/s.
+    • Movement arrows (QGridLayout):
+        - ↑ Up, ← Left, ↓ Down, → Right.
+          Each button supports both press-and-hold and keyboard shortcuts.
+    • Sample z-axis:
+        - QPushButtons for "Sample forward" (PgUp) and "Sample backward" (PgDn).
+    • LED toggle:
+        - QCheckBox to switch the sample illumination LED on/off.
+
+    Notes
+    -----
+    - Keyboard shortcuts mirror the arrow and page up/down keys for ergonomic
+      control without the mouse.
+    - Button press events initiate stage motion at the current set speed.
+      Release events stop motion (for continuous movement).
+    - LED state is mapped to ``c_p['blue_led']`` with convention
+      0 = ON, 1 = OFF.
+
+    Methods
+    -------
+    toggle_led(state)
+        Toggle LED state and update ``c_p['blue_led']`` accordingly.
+    move_up()
+        Move stage in the positive y direction at current speed.
+    stop_y()
+        Stop stage motion along the y axis.
+    move_down()
+        Move stage in the negative y direction at current speed.
+    move_right()
+        Move stage in the negative x direction at current speed.
+    stop_x()
+        Stop stage motion along the x axis.
+    move_left()
+        Move stage in the positive x direction at current speed.
+    objective_forward()
+        Move stage in the positive z direction at current speed.
+    objective_stop()
+        Stop stage motion along the z axis.
+    objective_backward()
+        Move stage in the negative z direction at current speed.
+
+    Example
+    -------
+    >>> c_p = {"blue_led": 1}
+    >>> motor = MyMotorController()
+    >>> window = MotorControllerWindow(c_p, motor)
+    >>> window.show()
     """
         
     def __init__(self, c_p, motor_controller: "Motor"):
@@ -200,6 +385,7 @@ class MotorControllerWindow(QWidget):
         main.addLayout(sample)
 
         # --- LED toggle ---
+        # TODO remove the blue led control parameter and replace with just a illumination on/off
         main.addWidget(QLabel("Sample LED ON/OFF"))
         self.led_button = QCheckBox()
         self.led_button.setChecked(self.c_p['blue_led'] == 0)
@@ -251,6 +437,76 @@ class MotorControllerWindow(QWidget):
         self.motor_controller.move_at_speed(0,0,-self.motor_controller.get_speed())
 
 class MotorMouseMove(MouseTool):
+    """
+    Mouse-based motor control tool for interactive sample movement.
+
+    This tool extends :class:`MouseTool` to translate user mouse actions into
+    motor stage commands. It allows centering by click, dragging for continuous
+    x/y motion, and vertical control via right-click or scroll-like drag.
+
+    Parameters
+    ----------
+    c_p : dict
+        Shared configuration/state dictionary. Expected keys include:
+        - 'mouse_params' : list
+            Encodes mouse interaction state as [button, x_click, y_click,
+            x_move, y_move].
+        - 'camera_width', 'camera_height' : int
+            Camera dimensions in pixels.
+        - 'AOI' : list[int]
+            Active area of interest [x0, x1, y0, y1].
+        - 'image_scale' : float
+            Scale factor between pixels and world units.
+        - 'ticks_per_pixel' : float
+            Conversion factor from pixels to motor ticks.
+    data_channels : dict
+        Metadata about active data streams (used for knowing current position
+        and speed).
+    MotorController : Motor
+        Motor controller instance implementing the :class:`Motor` protocol.
+
+    Attributes
+    ----------
+    x_0, y_0, z_0 : int
+        Initial reference positions for movement.
+    x_prev, y_prev, z_prev : int
+        Previous mouse positions for drag calculations.
+    prev_t : float
+        Timestamp of last update.
+    speed_factor : float
+        Scaling factor applied to mouse movement → motor velocity.
+
+    Mouse interactions
+    ------------------
+    - Left click (button=1):  
+      Re-center stage to the clicked point, adjusted for AOI and scale.
+    - Right click (button=2):  
+      Drag to move the stage continuously in x/y. Stops if mouse does not move.
+    - Middle click (button=3):  
+      Drag vertically to move the stage in z.
+
+    Methods
+    -------
+    mousePress()
+        Handle click or drag start: recenter on left click, prepare drag state
+        on right/middle click.
+    mouseRelease()
+        Stop stage motion when mouse button is released.
+    mouseDoubleClick()
+        No-op (placeholder for future).
+    draw(qp)
+        No-op (placeholder for visualization).
+    check_speed(speed) -> int
+        Clamp speed to the range [-32767, 32767], enforcing a minimum ±2.
+    mouseMove()
+        Handle continuous drag movement:  
+        - Right drag → call ``move_at_speed`` in x/y.  
+        - Middle drag → call ``move_at_speed`` in z.
+    getToolName() -> str
+        Return tool name "Minitweezers motor".
+    getToolTip() -> str
+        Return short description of tool functionality.
+    """
     
     def __init__(self, c_p, data_channels, MotorController):
         self.c_p = c_p
@@ -353,6 +609,19 @@ class ObjectiveStepperControllerToolbar(QToolBar):
     """
     Simple toolbar to control the objective stepper motor. Can move the stepper motor
     either towards or away from the sample. Can move slowly or fast (big or small steps).
+
+    Parameters
+    -------------
+    objective_mover: An ObjectiveMovement object, assumed to be connected alredy.
+
+    parent: A QT main window into which the toolbar can be placed.
+
+    Methods
+    -------------
+    
+    UI elements
+    -------------
+    Has 4 buttons for movement fast and slow towards and away from the sample.
     """
     def __init__(self, objective_mover, parent):
         super().__init__("Objective Controller", parent)

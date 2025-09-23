@@ -1,3 +1,52 @@
+"""
+Laser Control: Protocols, Mock Backend, and PyQt6 Widget
+
+This module defines a protocol interface for laser control, a test/mock
+implementation, and a PyQt6 widget that provides live control and an
+automated power protocol (useful when changing currents during experiments).
+
+Contents
+--------
+Protocols
+    LaserController
+        Hardware abstraction for a current-controlled laser source with
+        connect/disconnect, output enable, and current set/read behavior.
+
+Mock backend
+    TestLaserController
+        In-memory simulation of a laser controller (no hardware needed).
+
+Qt widget
+    LaserControllerWidget
+        GUI for two lasers (A/B): connect, enable/disable output, set current,
+        select COM ports, and run a timed power protocol that coordinates with
+        an external acquisition GUI.
+
+Shared state (c_p)
+------------------
+The widget integrates with a shared configuration/state dict `c_p`.
+Typical keys (extend as needed):
+    - 'program_running' : bool
+    - 'recording_path' : str
+    - 'recording' : bool
+    - 'laser_A_port', 'laser_B_port' : str (e.g. "COM3")
+    - 'laser_A_current', 'laser_B_current' : int (mA)
+    - 'laser_A_current_current', 'laser_B_current_current' : int (mA, display)
+    - 'laser_A_on', 'laser_B_on' : bool
+    - 'laser_power_protocol_running' : bool
+    - 'power_protocol_currents' : list[[mA_A, mA_B, duration_s], ...]
+    - 'filename' : str (output naming set by the protocol)
+
+Notes
+-----
+- The power protocol runs on a 100 ms QTimer and cycles through
+  `c_p['power_protocol_currents']`. For each step, currents are set, an optional
+  mid-interval snapshot is taken via `OT_GUI.snapshot()`, and recording is
+  toggled via `OT_GUI.start_saving()/toggle_recording()/stop_saving()`.
+- Two laser backends are supported simultaneously and addressed as A/B.
+"""
+
+
 from PyQt6.QtWidgets import (
  QVBoxLayout, QWidget, QLabel, QPushButton, QFormLayout, QHBoxLayout, QSpinBox,
 )
@@ -7,19 +56,40 @@ from typing import Protocol, runtime_checkable
 from time import sleep, time
 from functools import partial
 import os
-import abc
 
-def parse_current_mA(reply: str) -> float:
-    # take text before "ma", grab the last whitespace-separated token, convert
-    return float(reply.lower().split('ma')[0].split()[-1])
+# def parse_current_mA(reply: str) -> float:
+#     # take text before "ma", grab the last whitespace-separated token, convert
+#     return float(reply.lower().split('ma')[0].split()[-1])
 
 
 
 
 @runtime_checkable
 class LaserController(Protocol):
-    """Protocol for classes that control a laser source."""
+    """
+    Protocol for classes that control a laser source.
 
+    Implementations must provide connection management, output gating, and a
+    method to set the drive current (mA). Designed for interchangeable hardware
+    backends.
+
+    Methods
+    -------
+    connect() -> None
+        Establish connection to the device (e.g., open serial port).
+    disconnect() -> None
+        Close the device connection.
+    is_connected() -> bool
+        Return True if the device is connected.
+    set_current(current: float) -> None
+        Set the laser drive current in mA (device-specific range/quantization).
+    turn_on_output() -> None
+        Enable laser output (interlock permitting).
+    turn_off_output() -> None
+        Disable laser output.
+    is_output_on() -> bool
+        Return True if the laser output is enabled.
+    """
     def connect(self) -> None: ...
     def disconnect(self) -> None: ...
     def is_connected(self) -> bool: ...
@@ -33,8 +103,46 @@ class LaserController(Protocol):
 
 class TestLaserController(LaserController):
     """
-    A test/mock implementation of the LaserController for testing purposes.
-    It simulates a laser controller without actual hardware interaction.
+    Mock laser controller for development and testing.
+
+    Simulates a current-controlled laser with on/off output and a simple
+    "connected" flag. No hardware interaction occurs.
+
+    Attributes
+    ----------
+    current : float
+        Simulated laser current (mA), clamped to [0, 400] in `set_current`.
+    output_on : bool
+        Output enable state.
+    laser_ser : Any
+        Truthy when "connected"; None when disconnected.
+
+    Methods
+    -------
+    connect(adress)
+        Mark as connected and print the target address.
+    disconnect()
+        Mark as disconnected and clear state.
+    is_connected() -> bool
+        Return connection status.
+    set_current(current)
+        Set simulated current; ignore values outside [0, 400] mA.
+    turn_on_output(), turn_off_output()
+        Toggle the simulated output enable.
+    is_output_on() -> bool
+        Return output enable state.
+
+    Example
+    -------
+    >>> laser = TestLaserController()
+    >>> laser.connect("COM5")
+    Mock connect to laser at COM5
+    >>> laser.set_current(120)
+    Mock set current to 120 mA
+    >>> laser.turn_on_output()
+    Mock turn on laser output
+    >>> laser.is_output_on()
+    True
     """
 
     def __init__(self):
@@ -71,7 +179,78 @@ class TestLaserController(LaserController):
         self.laser_ser = None
 
 class LaserControllerWidget(QWidget):
+    """
+    PyQt6 widget for controlling two laser sources (A and B) and running a timed
+    power protocol.
 
+    The widget connects to two `LaserController`-compatible backends, exposes
+    on/off toggles, current setpoints (0–400 mA), COM port selectors, and a
+    button to start/stop an automated power protocol that steps through
+    `(mA_A, mA_B, duration_s)` tuples while coordinating file naming and data
+    acquisition with an external GUI (`OT_GUI`).
+
+    Parameters
+    ----------
+    c_p : dict
+        Shared configuration/state dictionary. Expected keys include:
+            - 'laser_A_port', 'laser_B_port' : str (e.g. "COM3")
+            - 'laser_A_current', 'laser_B_current' : int (mA)
+            - 'laser_A_current_current', 'laser_B_current_current' : int (mA)
+            - 'laser_A_on', 'laser_B_on' : bool
+            - 'laser_power_protocol_running' : bool
+            - 'power_protocol_currents' : list[[mA_A, mA_B, duration_s], ...]
+            - 'recording_path' : str
+            - 'recording' : bool
+            - 'program_running' : bool
+            - 'filename' : str (set by the protocol)
+    OT_GUI : object
+        Acquisition/recording controller exposing:
+            - `start_saving()`, `stop_saving()`, `toggle_recording()`, `snapshot()`.
+    laser_A, laser_B : LaserController
+        Laser backends implementing the `LaserController` protocol.
+
+    UI Elements
+    -----------
+    • Per-laser (A/B):
+        - Connect button (uses `c_p['laser_*_port']`)
+        - Turn ON/OFF button (output enable)
+        - SpinBox current setpoint (0–400 mA) + "Set current" button
+        - COM port SpinBox (numeric suffix applied to "COM")
+        - Live label for current readout (from `c_p`)
+    • Common:
+        - "Set both currents" button
+        - "Toggle automatic power changing experiment" (checkable)
+
+    Notes
+    -----
+    - A QTimer (100 ms) runs `laser_power_protocol()`:
+        * Initializes at first step by setting currents, naming output files,
+          and starting recording.
+        * At mid-step (`duration_s/2`), triggers `OT_GUI.snapshot()`.
+        * On step end, toggles recording, increments step, and repeats until
+          all protocol entries are consumed.
+    - The widget attempts to connect both lasers on initialization if not
+      already connected.
+
+    Methods
+    -------
+    initiate_interface()
+        Build and layout the controls for lasers A and B and common actions.
+    laser_power_protocol()
+        Execute the timed stepping of currents and recording/snapshot logic.
+    set_laser_A_current(), set_laser_B_current()
+        Apply current setpoints to the respective laser.
+    toggle_laser_A(), toggle_laser_B()
+        Enable/disable output for the respective laser.
+    set_laser_A_port(), set_laser_B_port()
+        Update `c_p` with the selected COM port.
+    set_both_currents()
+        Convenience to set A and B currents together.
+    connect_laser(laser)
+        Connect either 'A' or 'B' device using `c_p`-configured port.
+    closeEvent(event)
+        Disconnect both lasers and accept the close event.
+    """
     def __init__(self, c_p, OT_GUI, laser_A, laser_B):
         super().__init__()
         self.c_p = c_p
@@ -169,6 +348,7 @@ class LaserControllerWidget(QWidget):
             dt = time()-self.current_power_start_time
 
             # In the middle of the experiment, take a snapshot
+            # TODO change snapshorts
             if dt > self.time_interval/2 and not self.snapshot_taken: 
                 self.OT_GUI.snapshot()
                 self.snapshot_taken = True

@@ -1600,6 +1600,20 @@ class AutoControllerThread(Thread):
 
         return 'touching particles'
 
+    def aling_x_z_at_force(self):
+        # TODO put this 
+        z_dev = np.mean(self.data_channels['trapped_particle_z_position'].get_data(5))
+        print(f"z_displacement{z_dev}")
+        if np.abs(z_dev) > 0.4: # TODO use the same z-limit everywhere
+            self.compensate_DNA_z_position(z_dev) # Not doing anything here for now.
+            return False
+
+        x_force = np.mean(self.data_channels['trapped_x_force'].get_data(2))
+        if np.abs(x_force) > 1:
+            self.compensate_DNA_x_position(x_force)
+            return False
+
+
     def compensate_DNA_x_position(self, x_force):
         """
         Compensates for any x-misalignment between the particles when a DNA molecule is attached.
@@ -1924,6 +1938,8 @@ class AutoControllerThread(Thread):
             # Terminating protocol and resetting variables
             self.terminate_protocol()
             self.c_p['stretch_molecule'] = False
+            self.c_p['autocontroller_current_step'] = 'checking_pipette'
+            self.restart_experiment()
             return "Not ready to stretch"
 
         # If the protocol is not started then we should create a protocol
@@ -2082,7 +2098,15 @@ class AutoControllerThread(Thread):
         distance_y = self.c_p['pipette_tip_location'][1] - self.c_p['Trapped_particle_position'][1]
         print("Piezos moving to put particle close to pipette")
         self.put_particle_in_pipette()
-        
+    
+# TODO fix issue when particle lost
+
+# Particle lost: Particle in pipette: True,
+#                   particle trapped: False
+# Saving stopped
+# Saving stopped
+# Not ready to stretch
+
     def restart_experiment(self):
         """
         Drops the trapped particle and restarts the experiment with a new particle.
@@ -2099,23 +2123,20 @@ class AutoControllerThread(Thread):
 
         tmp = self.c_p['target_pressures'][self.c_p['central_fluidics_channel'][0]]
         
-        self.c_p['target_pressures'][self.c_p['central_fluidics_channel'][0]] = \
-            self.c_p['central_fluidics_channel'][1]
+        self.c_p['target_pressures'][self.c_p['central_fluidics_channel'][0]] = self.c_p['central_fluidics_channel'][1]
 
         # Opening valves
-        if self.c_p['valves_controller_connected']:
-            for idx,_ in enumerate(self.c_p['valves_open']):
-                print("Opening valves for flushing")
-                self.c_p['valves_open'][idx] = True
+        for idx,_ in enumerate(self.c_p['valves_open']):
+            print("Opening valves for flushing")
+            self.c_p['valves_open'][idx] = True
 
         sleep(2)
         self.c_p['target_pressures'][self.c_p['central_fluidics_channel'][0]] = tmp
 
         # Closing valves
-        if self.c_p['valves_controller_connected']:
-            for idx,_ in enumerate(self.c_p['valves_open']):
-                self.c_p['valves_open'][idx] = False
-                print("Opening closing valves")
+        for idx,_ in enumerate(self.c_p['valves_open']):
+            self.c_p['valves_open'][idx] = False
+            print("Opening closing valves")
         return "Restarting experiment"
 
     def get_2_particles(self):

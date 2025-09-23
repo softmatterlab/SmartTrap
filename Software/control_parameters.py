@@ -10,7 +10,9 @@ import numpy as np
 
 class ControlParametersViewer(QWidget):
     """
-    Window for displaying the current values of the data channels.
+    Window for displaying the current values of the data channels. Used primarily when testing
+    new features and one needs to check values of many parameters but don't want to print directly
+    to the command line.
     """
     def __init__(self, c_p):
         super().__init__()
@@ -254,8 +256,8 @@ def default_c_p():
             'minitweezers_connected': False,
             'blue_led': 0, # Wheter the blue led is on or off, 0 for on and 1 for off
             'objective_stepper_port': 'COM10',
-            'PSD_to_pos': [14.08,13.80,13.89,13.04], # System specific
-            'PSD_to_force': np.array([0.01699591, 0.01515298, 0.01761022, 0.01883884]), # Calibration - system specific
+            'PSD_to_pos': [14.08,13.80,13.89,13.04], # System specific            
+            'PSD_to_force': np.array([0.0173, 0.0164, 0.0178, 0.0182]), # Calibration - system specific
             'Photodiode_sum_to_force': [1200,-700,210], # The calibration factor for the photodiode/PSD sum channel to force
             'minitweezers_goto_speed': 10_000,
 
@@ -444,6 +446,8 @@ def get_data_dicitonary_smarttrap():
         dict: A dictionary mapping channel names to their corresponding DataChannel objects.
     """
 
+    # TODO remove the ones that are not general but specific to the smartTrap (e.g PSD_A_P_X)
+    # move these to the config.
     data = [
     ['Time', 'Seconds', False], # Time measured by the computer.
     ['prediction_time','microseconds', True],
@@ -470,14 +474,14 @@ def get_data_dicitonary_smarttrap():
     ['Motor time','microseconds', True],
     ['PSD_A_P_X','bits', True],
     ['PSD_A_P_Y','bits', True],
-    ['PSD_A_P_sum','bits', False],
+    ['PSD_A_P_sum','bits', True],
     ['PSD_A_F_X', 'bits', True],
     ['PSD_A_F_Y','bits', True],
     ['PSD_A_F_sum','bits', True],
     ['PSD_A_F_sum_compensated','bits', True],
     ['PSD_B_P_X', 'bits', True],
     ['PSD_B_P_Y','bits', True],
-    ['PSD_B_P_sum','bits', False],
+    ['PSD_B_P_sum','bits', True],
     ['PSD_B_F_X', 'bits', True],
     ['PSD_B_F_Y','bits', True],
     ['PSD_B_F_sum','bits', True],

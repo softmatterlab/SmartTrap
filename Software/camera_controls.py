@@ -1,3 +1,20 @@
+"""
+This file defines the different classes and functions needed to operate cameras and use them with
+the graphical interface.
+----------------------------
+Classes:
+
+- CameraClicks: Used to set the area of interest of the camera by clicking and dragging on the screen
+- CameraMeasurements: Used to measure distances on the screen (in microns) by left and right clicking.
+- CameraProtocol: Abstract camera class which defines the functions a camera needs to be used by the main interface.
+- TestCamera: A camera that class used for testing which outputs white images consisting of white noise.
+- CameraThread: The thread which is used to continously capture images using the camera.
+- VideoFormatError: Error sent if an unrecognised video format is selected.
+- VideoWriterThread: Thread that when requested writes the recorded images to a video.
+"""
+
+
+
 from __future__ import annotations
 
 from typing import Protocol, runtime_checkable, Tuple
@@ -373,7 +390,6 @@ def create_avi_video_writer(c_p, video_name, image_width, image_height):
                            (image_height, image_width), isColor=is_color)
     
 
-
 def create_mp4_video_writer(c_p, video_name=None):
     """
     Creates a high quality video writer for lossless recording.
@@ -443,7 +459,7 @@ def get_video_name(c_p, base_name=''):
 
 class VideoWriterThread(Thread):
     """
-    A class which simply deques the latest frame and prints it to a video
+    A class which simply deques the latest frame and prints it to a video.
     """
 
     def __init__(self, thread_id, name, c_p):
