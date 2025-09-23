@@ -8,16 +8,13 @@ SmartTrap is the first system capable of running advanced experiments such as, s
 
 ## Hardware
 The SmartTrap system is based on the MiniTweezers optical tweezers instrument, details of which you can find here: <http://tweezerslab.unipr.it/cgi-bin/home.pl>
-
 Below we provide lists of the components you need to assemble your own system along with guidlines on assembly and installation of the system.
-### Components
-The components of the system are split into separate units.
 
-### Schematics and custom mechanical components.
+### Components
+The components of the system are split into separate units. Files listing the different components are found in the components folder.
 
 ### Assembly instructions
-To assemble the instrument follow the steps outlined in the video ()
-Detailed instructions are also available on the minitweezers webpage: <http://tweezerslab.unipr.it/cgi-bin/home.pl>
+The assembly of the instrument is outlined in the video (). 
 
 ## Electronics
 The optical tweezers instrument is controlled by a custom electronics controller. This controller consists of 3 separate circuit boards (PCBs) which are connected together via ribbon cables.
@@ -53,20 +50,13 @@ Not all the components of the SmartTrap are controlled directly by the electroni
 
 ### Drivers
 Each component comes with a python driver class. These drivers are used to communicate between the device and the main program.
-The drivers each implements a python protocol. To replace the driver, create a class implementing the corresponding protocol and change the import in the main interface.
+The drivers each implements a python protocol. To replace the driver, create a class implementing the corresponding protocol and change the import in the main interface. Further details on the software are found in the Software folder.
 
-- Camera
- - Two options currently implemented: Thorlabs scientific cameras and Basler cameras. Thorlabs cameras require installing [thorlabs SDK](<https://www.thorlabs.com/software_pages/ViewSoftwarePage.cfm?Code=ThorCam>)
-- Optical tweezers instrument
- - Motors
- - Laser movement
- - Instrument communications
-- Microfluidics pump
- - OB1 controller from elvesys, requires the LabView runtime engine <https://www.ni.com/en/support/downloads/software-products/download.labview-runtime.html?srsltid=AfmBOoqhYo82koPNAGyVOaWM6Thr4NwTCO1KBI9eCecb0INE0mCxeVmB#569345>
-- Microfluidics valves
- - from elvesys
-- Pipette pump
- - D2028B from SparkFun Electronics.
+- **Camera** - Two options currently implemented: Thorlabs scientific cameras and Basler cameras. Thorlabs cameras require installing [thorlabs SDK](<https://www.thorlabs.com/software_pages/ViewSoftwarePage.cfm?Code=ThorCam>)
+- **Optical tweezers instrument** - The instrument is controlled using the custom controller. This provides also control of the motors, laser movement and sensor readings
+- **Microfluidics pump** - OB1 controller from elvesys, requires the LabView runtime engine <https://www.ni.com/en/support/downloads/software-products/download.labview-runtime.html?srsltid=AfmBOoqhYo82koPNAGyVOaWM6Thr4NwTCO1KBI9eCecb0INE0mCxeVmB#569345>
+- **Microfluidics valves** - Controlled with a MUX wire controller from elvesys.
+- **Pipette pump** - Pipette is activated by a one way DC pump ,D2028B from SparkFun Electronics. The pump is powered by a programmable power supply (TENMA 72-2540).
 
 ### Connecting the controllers
 — video showing the addition of the electronics (and possibly the unit testing and examples?)
