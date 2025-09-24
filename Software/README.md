@@ -50,7 +50,7 @@ Contains the following classes:
 - 
 
 
-## Microfluidics controllers
+## microfluidics_controllers
 This file defines the interfaces used for the 3 different microfluidics control devices; the pump, the valves and the pipette pump.
 - **MicrofluidicsController (Protocol)** – Interface for multi-channel pressure controllers (connect/disconnect, set/get pressure, channel count).  
 - **ValveController (Protocol)** – Interface for valve array controllers (connect, connection status, toggle/query valves).  
@@ -61,6 +61,35 @@ This file defines the interfaces used for the 3 different microfluidics control 
 - **MicrofluidicsMonitorThread** – QThread that syncs target/current pressures, valve states, and pipette pump power with shared state every 500 ms.  
 - **ConfigurePumpWidget** – Qt form to configure channel/valve assignments and per-channel max pressures for autonomous use.  
 - **MicrofluidicsControllerWidget** – Qt live control panel for setting pressures, toggling valves, and controlling pipette pump with auto-refresh.  
+
+## motor_controls
+The files defining the controls of the motors. This module defines protocol interfaces and lightweight test implementations for a 3-axis motor stage and an objective stepper, plus Qt tools/widgets for manual and mouse-driven control.
+
+#### Protocols
+- **Motor (Protocol)** – Abstract 3-axis stage motor (set/get speed, absolute move to position, velocity move, position readout, stop, is_moving).
+- **ObjectiveMovement (Protocol)** – Objective actuator with slow/fast motion toward/away from the sample (connect/status + 4 directional presets).
+
+#### Test Implementations
+- **TestMotorController** – In-memory 3-axis stage with nominal speed and instant absolute moves; `move_at_speed` integrates a 1-second step for demo.
+- **TestObjectiveMovement** – In-memory objective actuator that logs slow/fast moves and connection state.
+
+#### UI & Tools
+- **MotorControllerWindow (Qt)** – Manual control panel: speed presets (1/10/100 µm/s), arrow keys for x and y movement and PgUp/PgDn for Z, and a sample LED toggle bound to `c_p['blue_led']`.
+- **MotorMouseMove (MouseTool)** – Mouse-driven movement: click-to-move, right-drag for X and Y velocity control, middle-drag for Z.
+- **ObjectiveStepperControllerToolbar (Qt)** – Toolbar with slow/fast actions toward/away from sample for the objective stepper.
+
+> Shared state: Components expect a `c_p` dict (e.g., `blue_led`, `mouse_params`, `camera_width/height`, `AOI`, `image_scale`, `ticks_per_pixel`), and real controllers should implement the `Motor` / `ObjectiveMovement` protocols.
+
+## mouse_tools
+This module defines a lightweight `MouseTool` protocol for PyQt/PySide applications.  
+It standardizes how tools handle mouse events and optional custom drawing.
+
+#### Protocol
+- **MouseTool (Protocol)** – Abstract interface for interactive tools:
+  - `mouseMove`, `mousePress`, `mouseRelease`, `mouseDoubleClick` – Mouse event hooks.  
+  - `draw(qp, ...)` – Optional rendering on a `QPainter` context.  
+  - `getToolName()` – Short, human-readable name of the tool.  
+  - `getToolTip()` – Tooltip/description of the tool’s functionality.
 
 ## live_plots
 This module provides a customizable PyQt6/pyqtgraph plotting window designed for live data visualization during operation. All the different data_channels in the data_channels can be easily plotted and monotired at will.
