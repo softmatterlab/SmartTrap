@@ -38,35 +38,41 @@ To install (flash) the firmware onto the controller do the following.
  - Compile and upload the firmware by pressing the upload button in the top left corner of the IDE.
 Once the firmware is correctly uploaded, and the microcontroller is connected to both the controller PCB and the host computer, a green light will be flashing periodically on the microcontroller.
 
-Note: also other IDEs, such as Visual Studio Code, are possible to use but may require a bit more work to set up.
+Note that other IDEs, such as Visual Studio Code, are possible to use but may require a bit more work to set up.
 
-### Separate controllers
-Not all the components of the SmartTrap are controlled directly by the electronics controller used for the tweezers instrument. Listed below are the separate controllers are used. All have interfaces in the python GUI which can be used to instead use your own other controllers with minimal changes
-- Laser power control: 
-- Microfluidics: Pump and valves used are from [ElveFlow](<https://elveflow.com/>), in particular the OB1 microfluidics pump and the Mux Wire V3 valve controller. Links:
-- Micropipette: Uses a pump powerd by a dc motor. This is controlled by a separate power supply, TENMA 72-2540, same power supply as the pipette puller use.
-- Motorized objective movement: This is an optional addition and allows the user to move the objectives from the user interface for adjusting focus. Is an arduino UNO. The program for it can be found in the firmware folder.
-- Pipette puller: Powered by a TENMA 72-2540 power supply.
+### Controllers and drivers
+The SmartTrap system combines a central tweezers controller with several independent devices, each with its own hardware controller and corresponding Python driver. All drivers follow a Python protocol, so replacing hardware requires only minimal changes to the import in the main interface. Further details can be found in the Software folder.
 
-### Drivers
-Each component comes with a python driver class. These drivers are used to communicate between the device and the main program.
-The drivers each implements a python protocol. To replace the driver, create a class implementing the corresponding protocol and change the import in the main interface. Further details on the software are found in the Software folder.
-
-- **Camera** - Two options currently implemented: Thorlabs scientific cameras and Basler cameras. Thorlabs cameras require installing [thorlabs SDK](<https://www.thorlabs.com/software_pages/ViewSoftwarePage.cfm?Code=ThorCam>)
-- **Optical tweezers instrument** - The instrument is controlled using the custom controller. This provides also control of the motors, laser movement and sensor readings
-- **Microfluidics pump** - OB1 controller from elvesys, requires the LabView runtime engine <https://www.ni.com/en/support/downloads/software-products/download.labview-runtime.html?srsltid=AfmBOoqhYo82koPNAGyVOaWM6Thr4NwTCO1KBI9eCecb0INE0mCxeVmB#569345>
-- **Microfluidics valves** - Controlled with a MUX wire controller from elvesys.
-- **Pipette pump** - Pipette is activated by a one way DC pump ,D2028B from SparkFun Electronics. The pump is powered by a programmable power supply (TENMA 72-2540).
+- **Optical tweezers instrument** - The instrument is controlled using the custom controller. This provides also control of the motors, laser movement and sensor readings.
+  - Hardware: Custom electronics controller. Controls the motors, laser positioning and reads the various photosensors.
+  - Driver: Communicates with the host computer with serial USB. The different subsystems, sample stage motors, laser actuators and photosensors, are each controlled by separate classes allowing them to be easily replaced without replacing the entire controller if need be.
+- **Camera** - Camera is monitored directly in the user interface and from this one can also record videos and the camera feed is used in the autonomous protocols.
+  - Hardware: Two options currently implemented: Thorlabs scientific cameras and Basler cameras. 
+  - Driver: Connects automatically to the camera from the chosen suppliers. Other cameras can be implemented using the interface in camera_controls. The Basler cameras requires the PyPylon package while the Thorlabs cameras require installing the [thorlabs SDK](<https://www.thorlabs.com/software_pages/ViewSoftwarePage.cfm?Code=ThorCam>)
+- **Laser power control** - Enables adjusting the power of the two lasers directly from the user interface as well as during autonomous protocols
+  -  Hardware: Uses an OSTech laser diode driver and TEC controller [ds11-la0.5v14-pa02v14-t8545-691](<https://www.ostech.de/en/products/laser-drivers/ds11-t85/691>)
+  -  Driver: Uses serial communications, integrated in the OSTech laser
+- **Microfluidics** - The microfluidics is used to deliver particles into the system and digital control is necessary for autonomous procedures.
+  - Hardware: Pump and valves used are from [ElveFlow](<https://elveflow.com/>), in particular the OB1 microfluidics pump and the Mux Wire V3 valve controller.
+  - Driver: Requires ElveFlows proprietary software as well as the  the [LabView runtime engine](<https://www.ni.com/en/support/downloads/software-products/download.labview-runtime.html?srsltid=AfmBOoqhYo82koPNAGyVOaWM6Thr4NwTCO1KBI9eCecb0INE0mCxeVmB#569345>)
+- **Micropipette** The suction of the micropipette can be toggled by activating the pump connected to it.
+  - Hardware: Uses a pump powerd by a dc motor, D2028B from SparkFun Electronics. This is controlled by a separate power supply, TENMA 72-2540
+  - Driver: 
+- **Motorized objective movement**- This is an optional addition and allows the user to move the objectives from the user interface for adjusting focus.
+  - Hardware: Is an arduino UNO. The program for it can be found in the firmware folder.
+  - Driver:
+- **Pipette puller** A separate device used to make the micropipettes by heating and pulling on glass microcapillaries.
+  - Hardware: Custom desgined, see pipette puller section. Powered by a TENMA 72-2540 power supply.
+  - Driver: Runs in a separate graphical user interface in which the parameters of the heating can be tuned to get suitable size of the pipettes.
 
 ### Connecting the controllers
 — video showing the addition of the electronics (and possibly the unit testing and examples?)
 
 ## Main program
-The main program runs on the host computer and is used to steer the different devices.
-It includes a graphical user interface (GUI) and the fully autonomous protocols.
+The main program runs on the host computer and is used to steer the entire system. It includes a graphical user interface (GUI) and the fully autonomous protocols.
 
 ### Installation
-To install the main program first download the files in the Software folder of the github. It is recommended to use Anaconda (<https://www.anaconda.com/>) set up a separate python environment for the SmartTrap.
+To install the main program first download the files in the Software folder of the github. It is recommended to use Anaconda (<https://www.anaconda.com/>) set up a separate python environment for the SmartTrap. The system has been tested on Windows 11, compatability with other operating systems has not been tested.
 The software is tested with Python 3.13 as well as a computer running Windows 11 and a CUDA ready graphics card. Older and newer versions of python will likely work if they support the required packages, but have not been extensively tested.
 Once a python environment has been created, do the following to install the required packages. 
 - Open a terminal in the desired environment
@@ -75,13 +81,13 @@ Once a python environment has been created, do the following to install the requ
   - Recommended: Install pytorch with CUDA support,
    - To install cuda on windows <https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/> Install cuda prior to running the install command to automatically install pytorch with cuda support.
 
-The software needs to know which device is connected to which port. To configure this open up the windows device manager to check the COM ports.
-Then change in the config file and insert the appropriate COM ports to have the software automatically connect to the devices. Note that port numbers can change if for instance the computer is updated, if that happens just update the config file accordingly.
+The software needs to know which device is connected to which port. To check this open up the windows device manager to check the COM ports.
+Then change in the config.py file and insert the appropriate COM ports to have the software automatically connect to the devices. Note that port numbers can change, for instance if the computer is updated, if this happens just update the config file accordingly.
 
 ### Starting the software
-Once the installation is complete the program is run from the command prompt with the command:
+Once the installation is complete the program is started from the command prompt with the command:
 "python main.py"
-This will start the program and open the graphical user interfaces.
+This will start the program and open the graphical user interfaces. To run the command ensure that you have the correct python environment and that the command prompt is in the same folder as the software.
 
 ### Using the interface
 The various controls of the instrument are divided into different by different widgets. These are essentially small windows. The most central ones are described below.
@@ -89,13 +95,13 @@ The various controls of the instrument are divided into different by different w
 **The main window**
 The main window contains the camera view as a central component and most of the different widgets are docked in it by default.
 
-From the main window you can open the different widgets and perform various actions.
-
-By selecting the different mouse tools you can use your mouse to directly control the interfaces, by for instance selecting the motors you can click and drag on the screen to move the sample around.
+From the main window you can open the different widgets and perform various actions. By selecting the different mouse tools you can use your mouse to directly control the interfaces, by for instance selecting the motors you can click and drag on the screen to move the sample around.
 
 **Protocols widget**
 
 This widget is used to manually specify to the instrument which laser protocol to run. These protocols run on the microcontroller and steers the lasers, for instance moving the optical trap at a fix speed between two different positions.
+To set the parameters first write in the values you want and then hit set parameters. You can see the current values of the parameters in the column to the right.
+To start a protocol hit the "toggle protocol" button.
 
 **Plotting**
 
@@ -103,7 +109,14 @@ To plot and monitor signals, such as the forces, open a plotting window by openi
 This will open the default plotting tool which plots the force along the y-axis as function of time. To change which signals are plotted click "plot 1" in the plot window to open the plot options menu. There you can find x-data and y-data. Click these to select which signal to plot on the y-axis and which to plot on the x-axis.
 You can add more separate plots by clicking the "add plot" button.
 
-There are also several plot presets which you can select directly from the windows dropdown menu in the main interfaces. These are; force PSDs, positions PSDs and force-distance X and Y.
+There are also several plot presets which you can select directly from the windows dropdown menu in the main interfaces. These are; force PSDs, positions PSDs and force-distance X and Y. 
+
+It is possible to export both data and graphs directly from the plotting windows. To do this 
+
+**Recording data**
+To record data hit the record data button at the top right corner of the interface. It turns green automatically when data is recording.
+Likewise, to record videos, hit the record video at the top left of the screen. 
+You can select where to save the data by using the file drop down menu and selecting the "save data path" option. Under the "file" menu you can also select the format of videos, images and the data saved.
 
 #### Testing the software
 You can run the interface also without any of the devices connected. To do this follow the instructions to start the software, but add the extra argument -testmode by running the command:
