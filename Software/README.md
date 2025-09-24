@@ -102,6 +102,24 @@ Contains the following classes:
 - **TestTracker** - A mock tracker that generates random particle positions and simulates pipette detection, useful for testing the GUI without real models.
 - **TrackingControlWidget** - Qt widget for toggling tracking modes, loading 2D/z models, and adjusting z-offsets during experiments.
 
+## laser_protocols
+The laser protocols define various protocol used to move the lasers in a controlled manner and thereby execute various experimental protocols.
+This module defines a common `ExperimentLaserProtocol` interface and several concrete laser-control protocols, plus a Qt widget for selecting, configuring, and running them.
+
+#### Protocol Interface
+- **ExperimentLaserProtocol (Protocol)** – Unified API for start/stop/run state, human-readable names/descriptions, and numeric parameters (with descriptions, tooltips, and limits).
+
+#### Protocols
+- **ConstantSpeedProtocol** – Moves a laser along a chosen axis at constant speed between two position limits.  
+- **Push2ForceProtocol** – Pushes a trapped particle in a given direction until a target force is reached, then stops.  
+- **ConstantForceProtocol** – Maintains constant force along X/Y by auto-aligning the second trap and updating force setpoints.  
+- **ForceLimitProtocol** – Sweeps between lower/upper force limits at a set speed, reversing direction when thresholds are crossed.  
+- **PushAndWaitProtocol** – Pushes toward a force limit, waits for a set duration, then transitions to pulling based on position/force bounds.
+
+#### UI
+- **PullingProtocolWidget (Qt)** – Dropdown to pick a protocol, per-parameter editors (labels, tooltips, limits, current values), and a toggle to start/stop; refreshes at 40 ms to call `run_protocol()` while active.
+
+
 ## auto_controller
 In this module all the autonomous protocols are defined. 
 
