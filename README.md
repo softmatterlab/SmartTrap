@@ -35,7 +35,7 @@ To install (flash) the firmware onto the controller do the following.
  - Download the [Firmware folder](Firmware/).
  - Open the folder in the arduino IDE. Arduinos IDE which you can find here: <https://www.arduino.cc/en/software/>
  - Under tools select the arduino portenta H7 board and the correct COM port (should show up as Arduino Portenta )
- - Compile and upload the firmware by pressing the upload button in the top left corner of the IDE.
+ - Compile and upload the firmware by pressing the upload button in the top left corner of the IDE. There are a few extra packages needed to compile the software, if these are not installed the arduino IDE will automatically prompt you to install them.
 Once the firmware is correctly uploaded, and the microcontroller is connected to both the controller PCB and the host computer, a green light will be flashing periodically on the microcontroller.
 
 Note that other IDEs, such as Visual Studio Code, are possible to use but may require a bit more work to set up.
