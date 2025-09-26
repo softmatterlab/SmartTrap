@@ -13,3 +13,10 @@ You have two major options for obtaining the data.
 
 ### Training the network
 The SmartTrap uses [YOLOV5s](<https://docs.ultralytics.com/models/yolov5/>). There are newer YOLO models which are slightly more accurate and which can make do with less training data but these are also somewhat slower. Still if you choose to use a newer version the changes needed in the code to make them work are minimal.
+To install yolov5 follow their instructions on the [GitHub](<https://github.com/ultralytics/yolov5>)
+
+With the training data collected and 
+Open a command prompt and navigate to the installation folder. Run the command
+ - yolo train model=yolov5n.pt data=TrainingYOLO.yaml epochs=100 imgsz=640
+
+Where the TrainingYOLO.yaml is the file which specifies where the training data is placed and which classes to use. An example of this file is uploaded to this GitHub.
