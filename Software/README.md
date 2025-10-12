@@ -153,6 +153,7 @@ In this module all the autonomous protocols are defined as well as the correspon
 - **AutoControllerThread** - Thread which runs the autonomous protocols. This also handles the real-time tracking to simplify synchronization.
 - **AutoControlWidget** - A QWidget used to control and monitor the various autonomous protocols. Can also be used to toggle the subroutines which build up the autonomous protocols such as particle trapping.
 - **StokesTestWidget** - A small QWidget used to perform the stokes which can be used to calibrate the force detectors or to measure particle diameters.
+- **SelectLaserPosition** - A MouseTool used to indicate in the camera feed where the two lasers are. This in turn is used by the autonomous protocols to determine if a particle is trapped or not.
 - **AutonomousProtocol** - Interface used for the autonomous protocols. Currently the following protocls are implemented:
   - **DNAPulling** - Autonomous DNA pulling protocol implementing the AuotonomousProtocol.
   - **ElectrostaticRepulsion** - AutonomousProtocol which measures repulsive forces between two charged particles.
