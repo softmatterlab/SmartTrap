@@ -66,6 +66,7 @@ The SmartTrap system combines a central tweezers controller with several indepen
   - Driver: Runs in a separate graphical user interface in which the parameters of the heating can be tuned to get suitable size of the pipettes.
 
 ### Connecting the controllers
+Connecting the various controllers is simple. All connect to the host computer using USB. Importantly you will need to configure the softwware to know which COM port is used for which device. This is configured in the smarttrap_config.py by updating the appropriate port, which ports are used can be found in the device manager if you are using a windows pc.
 — video showing the addition of the electronics (and possibly the unit testing and examples?)
 
 ## Main program
