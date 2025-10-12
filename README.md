@@ -56,11 +56,11 @@ The SmartTrap system combines a central tweezers controller with several indepen
   - Hardware: Pump and valves used are from [ElveFlow](<https://elveflow.com/>), in particular the OB1 microfluidics pump and the Mux Wire V3 valve controller.
   - Driver: Requires ElveFlows proprietary software as well as the  the [LabView runtime engine](<https://www.ni.com/en/support/downloads/software-products/download.labview-runtime.html?srsltid=AfmBOoqhYo82koPNAGyVOaWM6Thr4NwTCO1KBI9eCecb0INE0mCxeVmB#569345>)
 - **Micropipette** The suction of the micropipette can be toggled by activating the pump connected to it.
-  - Hardware: Uses a pump powerd by a dc motor, D2028B from SparkFun Electronics. This is controlled by a separate power supply, TENMA 72-2540
-  - Driver: 
+  - Hardware: Uses a pump powered by a dc motor, D2028B from SparkFun Electronics. This is controlled by a separate power supply, TENMA 72-2540
+  - Driver: Python driver with the ability to set the power of the pump and toggle the suction on and off.
 - **Motorized objective movement**- This is an optional addition and allows the user to move the objectives from the user interface for adjusting focus.
   - Hardware: Is an arduino UNO. The program for it can be found in the firmware folder.
-  - Driver:
+  - Driver: Python driver communicating using serial USB. Allows for moving the objective in either long or short steps closer to or away from the chamber.
 - **Pipette puller** A separate device used to make the micropipettes by heating and pulling on glass microcapillaries.
   - Hardware: Custom desgined, see pipette puller section. Powered by a TENMA 72-2540 power supply.
   - Driver: Runs in a separate graphical user interface in which the parameters of the heating can be tuned to get suitable size of the pipettes.
