@@ -152,9 +152,10 @@ This module defines a common `ExperimentLaserProtocol` interface and several con
 ## auto_controller
 In this module all the autonomous protocols are defined. 
 
+- **AutoControllerThread** - Thread which runs the autonomous protocols. This also handles the real-time tracking to simplify synchronization
+- **StokesTestWidget** - A small QWidget used to perform the stokes which can be used to calibrate the force detectors or to measure particle diameters.
+- **AutonomousProtocol** - 
 
-- **AutoControllerThread** - Thread which runs the autonomous protocols. 
-- 
 # SmartTrap minitweezers instrument specific files
 Certain devices are specific to the SmartTrap system and thus rely on the specific hardware, e.g. specific microfluidics pump.
 To use these devices they implement the protocols specified in the above files.
@@ -180,8 +181,3 @@ Implementations of the lasercontroller that work with laser current drivers from
 The default tracking used in the SmartTrap system. Here the real-time tracking interfaces is implemented to work with yolov5 and the convoluitonal neural network that monitors the z-position.
 
 
-
-
-
-
-## SmartTrap driver
