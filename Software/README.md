@@ -49,7 +49,6 @@ Contains the following classes:
 - **CurrentValueWindow** - Class which is a PyQT widget that is used to monitor the various data channels, their current values and an rolling average of the current values. The widget can also be used to select which channels are saved when saving.
 - 
 
-
 ## microfluidics_controllers
 This file defines the interfaces used for the 3 different microfluidics control devices; the pump, the valves and the pipette pump.
 - **MicrofluidicsController (Protocol)** – Interface for multi-channel pressure controllers (connect/disconnect, set/get pressure, channel count).  
@@ -148,13 +147,17 @@ This module defines a common `ExperimentLaserProtocol` interface and several con
 #### UI
 - **PullingProtocolWidget (Qt)** – Dropdown to pick a protocol, per-parameter editors (labels, tooltips, limits, current values), and a toggle to start/stop; refreshes at 40 ms to call `run_protocol()` while active.
 
-
 ## auto_controller
-In this module all the autonomous protocols are defined. 
+In this module all the autonomous protocols are defined as well as the corresponding user interface elements. 
 
-- **AutoControllerThread** - Thread which runs the autonomous protocols. This also handles the real-time tracking to simplify synchronization
+- **AutoControllerThread** - Thread which runs the autonomous protocols. This also handles the real-time tracking to simplify synchronization.
+- **AutoControlWidget** - A QWidget used to control and monitor the various autonomous protocols. Can also be used to toggle the subroutines which build up the autonomous protocols such as particle trapping.
 - **StokesTestWidget** - A small QWidget used to perform the stokes which can be used to calibrate the force detectors or to measure particle diameters.
-- **AutonomousProtocol** - 
+- **AutonomousProtocol** - Interface used for the autonomous protocols. Currently the following protocls are implemented:
+  - **DNAPulling** - Autonomous DNA pulling protocol implementing the AuotonomousProtocol.
+  - **ElectrostaticRepulsion** - AutonomousProtocol which measures repulsive forces between two charged particles.
+  - **ParticleCharacterization** - AutonomousProtocol. Selects a particle within a certain size range (as estimated by the real-time tracking) and measures its hydrodynamic radius using a stokes test.
+  - **RBCStretching** - AutonomousProtocol used to measure the stretching of red blood cells by trapping them at various laser powers.
 
 # SmartTrap minitweezers instrument specific files
 Certain devices are specific to the SmartTrap system and thus rely on the specific hardware, e.g. specific microfluidics pump.
