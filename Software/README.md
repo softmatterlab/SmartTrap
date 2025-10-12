@@ -168,8 +168,7 @@ To use these devices they implement the protocols specified in the above files.
 This module contains the classes that handles communications to and from the SmartTrap electronics controller. Specifically a class which only handles the serial communications running in a separate process and a monitoring thread which parses the commands sent to and from the instrument. During operation both these are running continously.
 
 ## basler_cameras
-Contains the BaslerCamera class which is an implementaion of the CameraProtocol which can be used with cameras from Basler.
-Uses the pypylon package for this
+Contains the BaslerCamera class which is an implementaion of the CameraProtocol which can be used with cameras from Basler. Comparible with any camera from Basler which connect using USB. Uses the pypylon package for controlling the camera.
 
 ## thorlabs_scientific_cameras
 Contains the ThorlabsScientificCamera class which is an implementaion of the CameraProtocol which can be used with cameras from Thorlabs.
