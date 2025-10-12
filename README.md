@@ -41,7 +41,7 @@ Once the firmware is correctly uploaded, and the microcontroller is connected to
 Note that other IDEs, such as Visual Studio Code, are possible to use but may require a bit more work to set up.
 
 ### Controllers and drivers
-The SmartTrap system combines a central tweezers controller with several independent devices, each with its own hardware controller and corresponding Python driver. All drivers follow a Python protocol, so replacing hardware requires only minimal changes to the import in the main interface. Further details can be found in the Software folder.
+The SmartTrap system combines a central tweezers controller with several independent devices, each with its own hardware controller and corresponding Python driver. All drivers follow a Python protocol, so replacing hardware requires only implementing the correct interface and updating the create_devices function in the smarttrap_config.py file. Further details can be found in the Software folder.
 
 - **Optical tweezers instrument** - The instrument is controlled using the custom controller. This provides also control of the motors, laser movement and sensor readings.
   - Hardware: Custom electronics controller. Controls the motors, laser positioning and reads the various photosensors.
