@@ -26,7 +26,7 @@ class SaverThreadInterface(abc.ABC, Thread):
 
 class DataSaverThread(SaverThreadInterface):
 
-    def __init__(self,c_p,data_channels):
+    def __init__(self, c_p, data_channels):
         Thread.__init__(self)
         self.c_p = c_p
         self.data_channels = data_channels
@@ -50,14 +50,15 @@ class DataSaverThread(SaverThreadInterface):
 
     def save_data(self):
             # Convert data to DataFrame
-            #data = {channel: channel_data.data for channel, channel_data in self.data_channels.items()}
             df_new = pd.DataFrame(self.get_data_dict())
 
             # Append mode for CSV
             if not os.path.exists(self.filename):
-                df_new.to_csv(self.filename, mode='w', index=False)  # Create new file and write headers
+                # Create new file and write headers
+                df_new.to_csv(self.filename, mode='w', index=False)  
             else:
-                df_new.to_csv(self.filename, mode='a', header=False, index=False)  # Append without headers
+                # Append without headers
+                df_new.to_csv(self.filename, mode='a', header=False, index=False)
 
     def is_saving(self):
         return self.saving
@@ -185,12 +186,7 @@ class DataSaverThread(SaverThreadInterface):
 
     def run(self):
         while self.c_p['program_running']:
-            # TODO add the continous saving here
-            # if self.c_p['saving_data']:
-            #     if not self.saving:
-            #         self.start_saving()                
-            # if not self.c_p['saving_data'] and self.saving:
-            #     self.stop_saving()
+            # Will implement continous saving here.
             sleep(self.sleep_time)
         if not self.c_p['program_running'] and self.saving:
             self.stop_saving()

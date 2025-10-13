@@ -1,3 +1,37 @@
+
+"""
+Laser Experiment Protocols & UI
+================================
+
+High-level protocols for scripted laser/particle control and a Qt widget
+to configure and run them. Protocols share a uniform interface so new
+behaviors can be added with minimal boilerplate.
+
+Overview
+--------
+- `ExperimentLaserProtocol` defines the protocol API (start/stop/run/state,
+  parameter getters/setters with descriptions/tooltips/limits).
+- Concrete protocols translate user parameters into compact `protocol_data`
+  messages and device commands via `c_p`.
+- `PullingProtocolWidget` exposes a small UI to select a protocol, edit
+  parameters, and toggle execution; it calls `run_protocol()` at ~25 Hz.
+  Allowing for dynamic control also by the host computer.
+
+Shared State
+------------
+All protocols expect a shared dictionary `c_p` with (at minimum):
+- `protocol_data`: `List[int]` of length ≥ 7 for device-side commands.
+- `portenta_command_2`: `int` indicating which trap is auto-aligned (1=A, 2=B).
+- `PSD_to_force`: `Tuple[float, float]` for converting PSD units → pN.
+
+Notes
+-----
+- Protocols must be non-blocking: `run_protocol()` advances one step and
+  returns immediately; the widget’s timer drives progression.
+- Parameter arrays are lists of floats; use `get_parameter_*` helpers to
+  populate labels, tooltips, and value limits in the UI.
+"""
+
 from __future__ import annotations
 from typing import Protocol, List, Any, Dict
 
@@ -9,10 +43,40 @@ import numpy as np
 from time import sleep, time
 
 
-# TODO move the protols out of here and make them accesible from other classes as well
 class ExperimentLaserProtocol(Protocol):
     """
-    Interface compatible with ObjectTrackerYOLO (no signature changes required).
+    Protocol interface for scripted laser control.
+
+    Methods
+    -------
+    start_protocol() -> None
+        Arm/start the protocol; should not block.
+    run_protocol() -> None
+        Advance one non-blocking step; safe to call from a timer.
+    stop_protocol() -> None
+        Disarm/stop the protocol; should not block.
+    is_running() -> bool
+        Return True while the protocol is active.
+
+    Text metadata
+    -------------
+    get_protocol_name() -> str
+        Short, UI-friendly name.
+    get_protocol_description() -> str
+        One–two line description for the widget.
+
+    Parameters
+    ----------
+    get_parameters() -> List[float]
+        Current parameter values.
+    set_parameters(params: List[float]) -> None
+        Update parameters (use None to keep a value unchanged).
+    get_parameter_descriptions() -> List[str]
+        Human-readable labels for parameters.
+    get_parameter_tooltips() -> List[str]
+        Tooltips for parameter editors.
+    get_parameter_limits() -> List[List[float]]
+        Per-parameter [min, max] bounds.
     """
     # Control
     def start_protocol(self) -> None: ...
@@ -34,6 +98,12 @@ class ExperimentLaserProtocol(Protocol):
 
 
 class ConstantSpeedProtocol(ExperimentLaserProtocol):
+    """
+    Moves the laser at constant speed between two positions along the chosen axis (x or y).
+    Automatically toggles the autoalign function.
+
+    """
+
     _AXIS_NAMES = {1: "X", 2: "Y"}
     def __init__(self, c_p, axis=1):
             if axis not in self._AXIS_NAMES:
@@ -140,6 +210,10 @@ class ConstantSpeedProtocol(ExperimentLaserProtocol):
 
 
 class Push2ForceProtocol(ExperimentLaserProtocol):
+    """
+    Push a trapped particle in one direction until a target force is reached.
+    """
+
     _AXIS_NAMES = {1: "Left", 2: "Right", 3: "Up", 4: "Down"}
     _PROTOCOL_IDS = {1:5, 2:7, 3:9, 4:11}
     def __init__(self, c_p, axis=1):
@@ -236,6 +310,10 @@ class Push2ForceProtocol(ExperimentLaserProtocol):
 
 
 class ConstantForceProtocol(ExperimentLaserProtocol):
+    """
+    Maintains a constant force along X and Y by moving one trap and auto-aligning the second trap.
+    Set the target force values for both x and y (can be negative).
+    """
     
     def __init__(self, c_p):
             self.c_p = c_p
@@ -312,10 +390,10 @@ class ConstantForceProtocol(ExperimentLaserProtocol):
 
 
 class ForceLimitProtocol(ExperimentLaserProtocol):
-
+    """
+    Sweep between lower/upper force limits along one axis at a fixed speed.
+    """
     def __init__(self, c_p, data_channels, axis='Y'):
-            # if not axis == 'Y' or not axis == 'X':
-            #     raise ValueError(f"Axis {axis} not supported.")
             self.c_p = c_p
             self.axis = axis
             self._running = False
@@ -440,6 +518,9 @@ class ForceLimitProtocol(ExperimentLaserProtocol):
 
 
 class PushAndWaitProtocol(ExperimentLaserProtocol):
+    """
+    Push toward a target force, wait for a specified duration, then pull back.
+    """
     _DIRECTIONS = ["Left", "Right","Up","Down"]
     def __init__(self, c_p, data_channels, direction="Left"):
         self.c_p = c_p
@@ -582,7 +663,8 @@ class PushAndWaitProtocol(ExperimentLaserProtocol):
 
         if self.entanglement_step == 'pushing':
             # TODO have this depend on the movement direction
-            if self.current_force < self.push_force_limit: # Force negative when pushing, assuming direction=right
+            # Force negative when pushing, assuming direction=right
+            if self.current_force < self.push_force_limit: 
                 # Switch direction
                 self.force_move_direction = -1 # Moving up                
                 self.entanglement_step = 'waiting'
@@ -618,6 +700,29 @@ class PushAndWaitProtocol(ExperimentLaserProtocol):
         self.previous_force = self.current_force
 
 class PullingProtocolWidget(QWidget):
+    """
+    Qt widget to select, parameterize, and run laser protocols.
+
+    Parameters
+    ----------
+    c_p : dict
+        Shared control/state dictionary consumed by protocols.
+    data_channels : Mapping[str, Any]
+        Live data feeds used by some protocols (force/position).
+
+    UI
+    --
+    - Protocol dropdown populated from concrete implementations.
+    - Per-parameter editors with labels, tooltips, limits, and live values.
+    - Toggle button to start/stop the selected protocol.
+    - Timer (~40 ms) that calls `run_protocol()` while active.
+
+    Notes
+    -----
+    The widget is protocol-agnostic: it queries names, descriptions,
+    parameter metadata, and delegates execution to the active protocol.
+    """
+
     def __init__(self, c_p, data_channels):
 
         super().__init__()

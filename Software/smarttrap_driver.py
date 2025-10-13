@@ -567,7 +567,7 @@ class PortentaComms(Thread):
             self.portenta_data, self.outdata, self.c_p['COM_port'], self.running_process)
         self.communication_process.start()
         print("Portenta comms process started")
-        self.c_p['minitweezers_connected'] = True
+        # self.c_p['minitweezers_connected'] = True
         while self.c_p['program_running']:
             self.prepare_portenta_commands()
             self.read_data_to_channels()

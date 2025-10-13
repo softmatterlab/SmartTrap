@@ -2,11 +2,10 @@ import numpy as np
 from queue import Queue
 
 from PyQt6.QtWidgets import (
- QVBoxLayout, QWidget, QTableWidget, QTableWidgetItem
+ QCheckBox, QVBoxLayout, QWidget, QTableWidget, QTableWidgetItem
 )
 from PyQt6.QtCore import QTimer
 
-import numpy as np
 
 class ControlParametersViewer(QWidget):
     """
@@ -71,12 +70,11 @@ def default_c_p():
            'new_settings_camera': [False, None],
            'camera_width': 1920, # Default camera width, will automatically update when connecting
            'camera_height': 1080,
-           'camera_type': "Basler", # Implemented options are Thorlabs and Basler
            'recording': False,
            'exposure_time': 5000,
            'fps': 50,  # Frames per second of camera, measured
            'target_frame_rate': 50, # Target frame rate of the camera, can limit the framerate.
-           'filename': '',
+           'filename': 'measurement_',
            'video_name': 'Video',
            'video_format': 'avi',
            'image_format': 'png',
@@ -85,13 +83,11 @@ def default_c_p():
            'AOI':[0,1000,0,1000], # Area of interest of camera
            'target_AOI':[0,1000,0,1000], # Target area of interest of camera 
            # (not all cameras accept all AOIs even if they fit the sensor)
-           'recording_path': '../Example data/',
+           'recording_path': 'TestData/',
            'data_file_format': 'dictionary', # Options are csv, dictionary and xlsx.
            'bitrate': '30000000', # Bitrate of video to be saved
            'frame_queue': Queue(maxsize=2_000_000),  # Frame buffer essentially
            'image_scale': 1,
-           'microns_per_pix': 1/(21.022), #*(4.8/2.74), # Note this parameter is system dependent! 
-           # Defualt pixel size is 2.74 microns(Basler 23 um), our Thorcam has 4.8 micron in pixel size. 
 
            'offset_channels':[
                             'PSD_A_P_X', 'PSD_A_P_Y', 'PSD_A_P_sum',
@@ -174,22 +170,21 @@ def default_c_p():
             'pipette_location': [0,0,0,0], # Location of the pipette in the image,x,y position of tip as well as width and height of pipette(in this order).
             'pipette_tip_location': [0,0], # Location of the pipette tip in the image
 
-            # 'default_unet_path': "NeuralNetworks\TorchBigmodelJune_1",
-            'yolo_path': "NeuralNetworks\YOLOV5Weights.pt",
-            'default_z_model_path': "NeuralNetworks\Z_model_large_range.pth",
 
             # Autocontroller parameters
             'loop_execution_time': 0, # Time it takes to execute the loop
             'autocontroller_current_step': 'checking_pipette', # The current step of the autocontroller
-            'autonomous_experiment_type': 'molecule_stretching', # The type of autonomous experiment to be performed, alternatives are molecule_stretching and electrostatic(currently)
-            'autonomous_experiment_types': ['molecule_stretching','electrostatic_interactions',
-                                            'RBC_experiment', 'auto_stokes','hairpin_stretching'],
+            'autonomous_experiment_type': 'DNA pulling', # The type of autonomous experiment to be performed, alternatives are molecule_stretching and electrostatic(currently)
+            'autonomous_experiment_types': ['DNA pulling','Elctrostatic repulsion',
+                                            'Particle characterization', 'RBC Stretching'],
 
             'autonomous_experiment': False, # If this is toggled we will try to do a full autonomous experiment.
             'autonomous_experiment_states': ['checking_pipette','focusing_pipette',
                                              'searching_for_particle_1','sucking_into_pipette',
                                              'searching_for_particle_2','move_to_pipette_tip',
                                              'touching_particles'],
+            'external_restart': False,
+
             'centering_on': False,
             'trap_particle': False,
             'search_and_trap': False,
@@ -218,14 +213,7 @@ def default_c_p():
             'laser_position_A_predicted': [2660, 1502.3255814],
             'laser_position_B_predicted': [2660, 1502.3255814],
             'laser_position': [2660, 1502.3255814], # Updated as the average of position A and B
-            # Laser a approximate x position is 
-            # lpx = laser_a_transfer_matrix[0]*psd_a_x + laser_a_transfer_matrix[1]*psd_a_y
-            # Needs calibrating for each system
-            'laser_a_transfer_matrix': np.array([ 13.62547902 , 0.39582976, -0.98140442, 
-                                                 13.65848671]), 
-            'laser_b_transfer_matrix': np.array([ -13.75365959 , -2.95635977,-2.87762914,
-                                                 16.21314373]), 
-
+            
             # Position of the capillaries that push out beads 1 and 2, 1 being the beads going to the pipette and 2 the beads going to the trap
             'capillary_1_position': [0,0,0], 
             'capillary_2_position': [0,0,0],
@@ -238,54 +226,25 @@ def default_c_p():
             'central_fluidics_channel': [1, 50,1], # The central channel where the pipette is.
             
 
-            # DNA stretching parmeters
-            'molecule_attached': False,
-            'stretching_speed': 100, # Speed of stretching in a.u # Increased from 20
-            'stretching_distance': 6, # Maximum distance to stretch in microns, without overstretching
-            "min_stretch_distance": 4, # Minimum distance to stretch in microns, including overstretching
-            'stretch_force': 69, # Maximum force to stretch with in pN in auto-experiments
-            'max_force': 100, # Maximum force allowable in pN, essentially the force at which we risk loosing the bead.
+            # Autonomous protocol parameters parmeters
             'protocol_limits_dac': [20_000, 40_000], # The limits of the protocol in DAC units,
-            'measurement_time': 600, # Time(seconds) during which we will do the stretching experiment.
-            'external_save_toggled': False,
-            'experiment_finished': False,
-            
+            'measurement_time': 600, # Time(seconds) during which experiments will be performed on a single particle
+         
 
-            # Minitweezers controller parameters
-            'COM_port': 'COM4',
-            'minitweezers_connected': False,
+            # Minitweezers controller parameters            
             'blue_led': 0, # Wheter the blue led is on or off, 0 for on and 1 for off
-            'objective_stepper_port': 'COM10',
-            'PSD_to_pos': [14.08,13.80,13.89,13.04], # System specific            
-            'PSD_to_force': np.array([0.0173, 0.0164, 0.0178, 0.0182]), # Calibration - system specific
-            'Photodiode_sum_to_force': [1200,-700,210], # The calibration factor for the photodiode/PSD sum channel to force
-            'minitweezers_goto_speed': 10_000,
 
             # Minitweezers protocols parameters
             'protocol_running': False,
-            'protocol_type': 'Constant speed', # Options are constant force, constant velocity, constant distance
+            'protocol_type': 'Constant speed',
             'protocol_data': np.uint8(np.zeros(13)),            
 
-            # Minitweezers calibration parameters
-            'grid_size': 10, # must match the numbers below. # Changed from 10
+            # Automatic position calibration parameters
+            'grid_size': 10, # Number of datapoints used when moving in the grid
             'calibration_points': np.zeros([10,10,17]),
             'calibration_start': True, # Used to tell if the calibration should be reset (started from scratch).
             'calibration_running': False,
             'calibration_performed': False, # Sets to true when a new calibration has been performed and this should be updated in the read-portenta thread
-
-            # Protocol for electrostatic interactions:
-            "electrostatic_protocol_toggled": False,
-            'electrostatic_protocol_running': False,
-            'electrostatic_protocol_finished': False,
-            'electrostatic_experiment_alignment': False,
-            'electrostatic_auto_experiment': False,
-            'electrostatic_touch_force_limit': 10,
-            'electrostatic_speed': 2,
-            'electrostatic_separation': 0.5, # Separation in microns between the particles surface at maximum
-            'electrostatic_protocol_start': 20_000, # First postiion
-            'electrostatic_protocol_end': 30_000, # Last postion
-            'electrostatic_protocol_steps': 10, # stops of the protocol
-            'electrostatic_protocol_duration': 20, # Duration of the protocol in seconds per step
 
             # Red blood cells (RBC) experiment parameters
             'laser_power_protocol_running': False,
@@ -304,73 +263,49 @@ def default_c_p():
                                 ], # Ordedered as [laser_A_current, laser_B_current, duration]
 
             # Laser parameters
-            'laser_A_port':'COM12',
-            'laser_B_port':'COM11',
             'laser_A_current': 249, # Current in mA
             'laser_B_current': 235, # Current in mA
             'laser_A_current_current': 0, # Current in mA
             'laser_B_current_current': 0, # Current in mA
             'laser_A_on': False,
             'laser_B_on': False,
-            'reflection_A': 0.0693, # Used to calculate the actual laser power in the sample.
-            'reflection_B': 0.0816,
-            'sum2power_A': 0.00692*94/135,
-            'sum2power_B': 0.00682*94/135,
-            'reflection_fac': 1.0057, # Factor relatets to the compensation when calculating the true sum readings.
-
             # Microfluidics system  parameters
-            'pump_adress': 'COM5', # If there is a pump error then it is probably due to this COM port being wrong.
             'target_pressures': np.array([0.0, 0.0 , 0.0, 0.0]),
             'current_pressures': np.array([0.0, 0.0 , 0.0, 0.0]),
             # Valve parameters
             'valve_controller': None,
-            'valve_adress': 'COM3',
             'valves_controller_connected': False,
-            'valves_used': [1,3], # indices of the valves used
             'valves_open': [False,False,False,False,False,False,False,False],
 
             # Parameters for the electronics pump for the pipette
-            'pipette_pump_adress': 'COM6',
             'pipette_pump_on': False,
             'pipette_pump_target_power': 8,
             'pipette_pump_current_power': 0,
 
-           # Minitweezers motors
-           'motor_x_target_speed': 0,
-           'motor_y_target_speed': 0,
-           'motor_z_target_speed': 0,
-           'minitweezers_target_pos': [0,0,0], # Should these start at 0?
-           'minitweezers_target_speed': [0,0,0],
-           'motor_travel_speed': [2_000, 2_000], # 5000 was somewhat high Speed of move to location.
-           'move_to_location': False, # Should the motors move to a location rather than listen to the speed?
-           'ticks_per_micron': 6.24,#24.45, # How many ticks per micron
-           'microns_per_tick': 1/6.24, #0.0408, # How many microns per tick
-           'ticks_per_pixel': 6.24/(18.28*1.15), #1.337, # How many pixels per micron
-           'saved_positions':[],
+            # Minitweezers motors
+            'motor_x_target_speed': 0,
+            'motor_y_target_speed': 0,
+            'motor_z_target_speed': 0,
+            'minitweezers_goto_speed': 10_000,
+            'minitweezers_target_pos': [0,0,0], # Should these start at 0?
+            'minitweezers_target_speed': [0,0,0],
+            'motor_travel_speed': [2_000, 2_000], # 5000 was somewhat high Speed of move to location.
+            'move_to_location': False, # Should the motors move to a location rather than listen to the speed?
+            'saved_positions':[],
 
-           # Stokes test parameters
-           'stokes_left_pos': [0,0,0],
-           'stokes_right_pos': [0,0,0],
-           'stokes_up_pos': [0,0,0],
-           'stokes_down_pos': [0,0,0],
-           'stokes_center_pos': [0,0,0],
-           'stokes_size_threshold': 2,
-           'stokes_stage': "stokes_startup",
-           'stokes_test_running': False,
-           'stokes_test_step': "startup",
-           'stokes_max_move_count': 3,
+            # Stokes test parameters. Note that stokes test is used during calibration
+            'stokes_left_pos': [0,0,0],
+            'stokes_right_pos': [0,0,0],
+            'stokes_up_pos': [0,0,0],
+            'stokes_down_pos': [0,0,0],
+            'stokes_center_pos': [0,0,0],
+            'stokes_size_threshold': 2,
+            'stokes_stage': "stokes_startup",
+            'stokes_test_running': False,
+            'stokes_test_step': "startup",
+            'stokes_max_move_count': 3,
 
-           # DNA Hairpins experiment parameters
-           'hairpin_experiment_running': False,
-           'hairpin_experiment_step': "startup",
-           'hairpin_experiment_steps': ["startup","waiting_for_particle","waiting_for_hairpin",
-                                        "waiting_for_stretching","waiting_for_release"],
-           'hairpin_max_pull_distance': 1, # Maximum distance the laser will move when trying to attach a hairpin
-           'hairpin_counter': 0,
-           'hairpin_max_force': 30, # Will use force protocol between min and max force
-           'hairpin_min_force': -5,
-
-           'steppers_connected': [False, False, False], # 
+            'steppers_connected': [False, False, False], # 
         }
     return c_p
 
@@ -522,3 +457,94 @@ def get_data_dicitonary_smarttrap():
     for channel in data:
         data_dict[channel[0]] = DataChannel(channel[0], channel[1], [0], channel[2])
     return data_dict
+
+
+class CurrentValueWindow(QWidget):
+    """
+    Window for displaying the current values of the data channels.
+    """
+    def __init__(self, c_p, data_channels):
+        super().__init__()
+        self.c_p = c_p
+        self.data_channels = data_channels
+        self.setWindowTitle("Data channels viewer")
+        self.resize(800, 800)
+
+        self.vBox = QVBoxLayout()
+        self.CreateTable()
+        self.vBox.addWidget(self.table)        
+
+        self.timer = QTimer()
+        self.timer.setInterval(500) # sets the fps of the timer
+        self.timer.timeout.connect(self.set_data)
+
+        self.timer.start()
+        self.setLayout(self.vBox)   
+
+    def CreateTable(self):
+
+        self.table = QTableWidget(len(self.data_channels)+2, 6)
+        self.table.setHorizontalHeaderLabels(
+            ["Channel", "Value", "Mean", "Standard dev", "Unit", "Save"])
+
+        for idx, channel in enumerate(self.data_channels):
+            self.table.setItem(idx, 0, QTableWidgetItem(f"{self.data_channels[channel].name}"))
+            self.table.setItem(idx, 1, QTableWidgetItem(
+                f"{self.data_channels[channel].get_data(1)}"))
+            data = self.data_channels[channel].get_data(self.c_p['averaging_interval'])
+            if data is not None and len(data) > 1:
+                self.table.setItem(idx, 2, QTableWidgetItem(f"{np.mean(data)}"))
+            else:
+                self.table.setItem(idx, 2, QTableWidgetItem(""))
+
+            if data is not None and len(data) > 1:
+                self.table.setItem(idx, 3, QTableWidgetItem(f"{np.std(data)}"))
+            else:
+                self.table.setItem(idx, 3, QTableWidgetItem(""))
+            self.table.setItem(idx,4, QTableWidgetItem(f"{self.data_channels[channel].unit}"))
+
+            # Create a QCheckBox, connect it to the toggle_save method and add it to the table
+            save_checkbox = QCheckBox()
+            save_checkbox.stateChanged.connect(lambda state, ch=channel: self.toggle_save(state,
+                                                                                          ch))
+            save_checkbox.setChecked(self.data_channels[channel].saving_toggled)
+
+            save_checkbox.setStyleSheet("""
+                QCheckBox::indicator {
+                    width: 30px;
+                    height: 30px;
+                }
+                """)
+            self.table.setCellWidget(idx, 5, save_checkbox)
+
+        # Set the 'fps' value in the last row
+        fps_idx = len(self.data_channels)
+        self.table.setItem(fps_idx, 0, QTableWidgetItem("FPS"))
+        self.table.setItem(fps_idx, 1, QTableWidgetItem(f"{self.c_p['fps']}"))
+        for i in range(2, 6):  # Clear the rest of the columns for the FPS row
+            self.table.setItem(fps_idx, i, QTableWidgetItem(""))
+
+    def toggle_save(self, state, channel):
+        """
+        Toggle the saving_toggled property of the DataChannel when the checkbox is toggled.
+        """
+        self.data_channels[channel].saving_toggled = bool(state)
+    
+    def set_data(self):
+        
+        for idx, channel in enumerate(self.data_channels):
+            data = self.data_channels[channel].get_data(self.c_p['averaging_interval'])
+            self.table.setItem(idx,1, QTableWidgetItem(
+                f"{self.data_channels[channel].get_data(1)}"))
+            if data is not None and len(data) > 1:
+                self.table.setItem(idx,2, QTableWidgetItem(f"{round(np.mean(data),6)}"))
+            else:
+                self.table.setItem(idx,2, QTableWidgetItem(f"{data}"))
+            if data is not None and len(data) > 1:
+                self.table.setItem(idx,3, QTableWidgetItem(f"{round(np.std(data),6)}"))
+            else:
+                self.table.setItem(idx,3, QTableWidgetItem(f"{data}"))
+
+        # Refresh the 'fps' value in the last row
+        fps_idx = len(self.data_channels)
+        self.table.setItem(fps_idx, 1, QTableWidgetItem(f"{self.c_p['fps']}"))

@@ -33,20 +33,19 @@ from PyQt6.QtWidgets import (
     QToolBar,
 )
 
-import auto_controller_v5 as AutoController  # V4 is currently the latest
+import auto_controller_v6 as AutoController  # V4 is currently the latest
 import laser_controller
 import motor_controls
 
 from camera_controls import CameraThread, VideoWriterThread, CameraClicks, CameraMeasurements
-from control_parameters import default_c_p, get_data_dicitonary_smarttrap, ControlParametersViewer
-from data_channels_viewer import CurrentValueWindow
+from control_parameters import default_c_p, get_data_dicitonary_smarttrap, ControlParametersViewer, CurrentValueWindow
 from laser_move_widget import LaserPiezoWidget, MinitweezersLaserMove
 from live_plots import PlotWindow
 from smarttrap_driver import PortentaComms
 from laser_protocols import PullingProtocolWidget
 from QWidget_dock_container import QWidgetWindowDocker
 from real_time_tracking import TrackingControlWidget
-
+from smarttrap_config import get_defualt_config
 from microfluidics_controllers import (
     MicrofluidicsControllerWidget,
     ConfigurePumpWidget,
@@ -455,6 +454,13 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("Optical tweezers: Main window")
         self.c_p = default_c_p()
+
+        # Import configuration parameters and add them to the control parameters
+        config = get_defualt_config()
+        for key in config:
+            self.c_p[key] = config[key]
+
+        # TODO move to config
         self.data_channels = get_data_dicitonary_smarttrap()
         self.video_idx = 0
         self.data_idx = 0 # Index of data saved
@@ -678,7 +684,8 @@ class MainWindow(QMainWindow):
                 object_tracker=self.object_tracker,
                 motor_controller=self.motor_controller,
                 main_window=self,
-                data_saver=self.data_saver_thread
+                data_saver=self.data_saver_thread,
+                pipette_pump=self.pipette_pump
                 )
             self.auto_controller_thread.start()
             print("Auto controller started")
@@ -994,6 +1001,7 @@ class MainWindow(QMainWindow):
     def reset_force_PSDs(self):
         self.c_p['PSD_force_means'] = [0, 0, 0, 0]
         self.c_p['portenta_command_1'] = 2
+        
 
     def zero_position_PSDs(self):
         

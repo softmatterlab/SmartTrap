@@ -2,7 +2,6 @@
 import cv2
 import torch
 import torch.nn as nn
-import yolov5
 from yolov5 import YOLOv5
 from ultralytics import YOLO
 import numpy as np
@@ -46,11 +45,7 @@ def load_yolov5_model(model_path):
 
     torch.load = _load  # monkey-patch
     try:
-        # add the yolov5 folder path
-        yolopath = yolov5.__file__
-        yolopath = yolopath = yolopath[:yolopath.rfind('/')]
-        
-        return torch.hub.load(yolopath, "custom", path=model_path, source="local", force_reload=True)
+        return torch.hub.load(".", "custom", path=model_path, source="local", force_reload=True)
     finally:
         torch.load = orig_load
     # model = torch.hub.load('.', 'custom', path=model_path, source='local') 
@@ -68,8 +63,7 @@ class ObjectTrackerYOLO(ObjectTracker):
         self.z_model = self.load_z_model(z_model_path)
         #self.z_model = torch.load(z_model_path)
         print("Successfully loaded models")
-        print(f"Using device: {self.device}")
-        # self.z_model.to(self.device)
+        print(f"Using device: {self.device}")        
         self.z_model.to(self.device, non_blocking=True)
 
         self.pipett_location = [0, 0, 0, 0]  # x, y, width, height
@@ -225,18 +219,18 @@ class ObjectTrackerYOLO(ObjectTracker):
         # import types
         orig_load = torch.load
 
+        if self.device.type == 'cpu':
+            model = torch.load(network_name, map_location=torch.device("cpu"),weights_only=False)
+            return model
+
         def _load(*args, **kwargs):
             kwargs.setdefault("weights_only", False)
             return orig_load(*args, **kwargs)
 
         torch.load = _load
         try:
-            return torch.load(network_name,map_location=self.device)
+            return torch.load(network_name)
         except Exception as E:
             print("Could not loadz z-model")
-            # initialize a new model with random weights
-            print("Initializing new model with random weights")
-            model = ParticleCNN()
-            model.to(self.device)
             print(E)
-            return model
+            return None

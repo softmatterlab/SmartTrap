@@ -42,11 +42,11 @@ class SmartTrapMotor(Motor):
             self.c_p['motor_y_target_speed'] = 0
             self.c_p['motor_z_target_speed'] = 0
             return
-        if self.c_p['minitweezers_connected']:
-            self.c_p['minitweezers_target_pos'][0] = int(position[0])
-            self.c_p['minitweezers_target_pos'][1] = int(position[1])
-            self.c_p['minitweezers_target_pos'][2] = int(position[2])
-            self.c_p['move_to_location'] = True
+        # if self.c_p['minitweezers_connected']:
+        self.c_p['minitweezers_target_pos'][0] = int(position[0])
+        self.c_p['minitweezers_target_pos'][1] = int(position[1])
+        self.c_p['minitweezers_target_pos'][2] = int(position[2])
+        self.c_p['move_to_location'] = True
 
     def move_to_location_check(self):
         dist_x = self.c_p['minitweezers_target_pos'][0] - self.data_channels['Motor_x_pos'].get_data(1)[0]

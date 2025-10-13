@@ -873,7 +873,7 @@ class MicrofluidicsControllerWidget(QWidget):
 
     def refresh(self):
         
-        self.pipette_pump_max_power_spinbox.setValue(self.c_p['pipette_pump_current_power'])
+        self.pipette_pump_max_power_spinbox.setValue(self.c_p['pipette_pump_target_power'])
         self.toggle_pipette_pump_button.setChecked(self.c_p['pipette_pump_on'])
 
         for button, index in zip(self.valve_buttons, self.c_p['valves_used']):

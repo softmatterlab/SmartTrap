@@ -162,8 +162,8 @@ class PSUControlPanel(QWidget):
     def __init__(self,
                  COM_PORT="COM5",
                  ramp_duration=8.5,
-                 max_time=10,
-                 max_current=3.25,
+                 max_time=11,
+                 max_current=3.27,
                  ):
         super().__init__()
         self.PSU = TenmaPullerPSU(COM_PORT)
