@@ -162,7 +162,7 @@ In this module all the autonomous protocols are defined as well as the correspon
 
 # SmartTrap minitweezers instrument specific files
 Certain devices are specific to the SmartTrap system and thus rely on the specific hardware, e.g. specific microfluidics pump.
-To use these devices they implement the protocols specified in the above files.
+To use these devices they implement the protocols specified in the above files. By default these are the devices loaded by the program using the create_devices function from the smarttrap_config.py file.
 
 ## smarttrap_driver
 This module contains the classes that handles communications to and from the SmartTrap electronics controller. Specifically a class which only handles the serial communications running in a separate process and a monitoring thread which parses the commands sent to and from the instrument. During operation both these are running continously.
