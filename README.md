@@ -158,12 +158,13 @@ The software provided here is open source and as such you are free to download a
 
 ## Adapting the software to other systems
 The software suit, and in particular the interface and its back end, has been designed with the use in other system and experimental procedures in mind. 
-The different protocols of the various devices simply needs to be implemented.
+The different protocols of the various devices simply needs to be implemented and then you need to adapt the create_devices function in config.py to ensure that your specific device is used.
 
 ## Making a sample chamber
-The sample chambers used in the SmartTrap are handmade.
+The sample chambers used in the SmartTrap are handmade. You can make your own chambers by following the instructions below.
 
 ### Items needed
+ To make a microfluidics chamber the following is needed. Below are also instructions on how to prepare the parafilm and the glass slides.
  **Tools**:
 - Laser cutter
 - Hotplate
@@ -177,7 +178,7 @@ The sample chambers used in the SmartTrap are handmade.
 - Micropipette
 - Channel capillaries
 
-Note that both the parafilm and the holes in the coverglasses can be cut with a lasercutter.
+Note that both the parafilm and the holes in the coverglasses can be cut with a lasercutter. 
 
 **Cutting parafilm**
 First prepare the parafilm by cutting it with the laser cutter. To do this place it stretched horisontally on the laser cutter with the paper peeled off. 
@@ -188,7 +189,7 @@ The settings of the laser cutter will depend on the model used. We use vector en
 
 **Preparing the holes of the glass slides**
 To make holes in the glass slides you can either use glass drill or a laser cutter.
-The optimal settings will again depend on the model of the laser cutter. Recommended is to use multiple repetitions.
+The optimal settings will depend on the model of the laser cutter. Recommended is to use multiple repetitions.
 If you instead use a drill carefully check that all the holes are placed in the correct position.
 
 ### Assembling a chamber
@@ -251,9 +252,9 @@ The puller consists of a metal base with two rods along which the pipette holder
 A platina wire is heated using resistive heating to heat up the capillary and melt it.
 
 ### Using the pipette puller
-To use the pipette puller first mount a glass capillary in it and connect the cables to the power supply (does not matter which cable goes were). 
+To use the pipette puller first mount a glass capillary in it and connect the cables to the power supply (does not matter which cable goes where since it uses resistive heating). 
 Then start the puller software by navigating to the correct folder and running the command "python pipette_puller.py". This will open up a small interface from which you can control the power supply and thereby the pipette puller heating.
-The program is run by hitting the run button. This will start the heating. 
+The heating protocol is run by hitting the start protocol button. This will start the heating. 
 
 The parameters used for the pulling may need to be tuned to optimize the shape of the pipette. In general, the faster the pulling the smaller the pipette opening (and the longer the larger the opening). Increasing the maximum allowed current of the puller will decrease the pulling time.
 
