@@ -94,8 +94,8 @@ This will start the program and open the graphical user interfaces. To run the c
 The various controls of the instrument are divided into different by different widgets. These are essentially small windows. The most central ones are described below.
 
 **The main window**
-The main window contains the camera view as a central component and most of the different widgets are docked in it by default.
 
+The main window contains the camera view as a central component and most of the different widgets are docked in it by default.
 From the main window you can open the different widgets and perform various actions. By selecting the different mouse tools you can use your mouse to directly control the interfaces, by for instance selecting the motors you can click and drag on the screen to move the sample around.
 
 **Protocols widget**
@@ -105,7 +105,8 @@ To set the parameters first write in the values you want and then hit set parame
 To start a protocol hit the "toggle protocol" button.
 
 **Mouse tools**
-There are several different tools you can use with the mouse. These are found and selected in the top left of the interface. With these you can for instance zoom in the camera view to an area of interest, measure distances and move the sample stage.
+
+There are several different tools you can use with the mouse to interact with the instrument based on what is seen on the camera feed. These tools are found and selected in the top left of the interface. With these you can for instance zoom in the camera view to an area of interest, measure distances, move the lasers and move the sample stage by clikcing and dragging.
 
 **Plotting**
 
@@ -115,14 +116,30 @@ You can add more separate plots by clicking the "add plot" button.
 
 There are also several plot presets which you can select directly from the windows dropdown menu in the main interfaces. These are; force PSDs, positions PSDs and force-distance X and Y. 
 
-It is possible to export both data and graphs directly from the plotting windows. To do this 
+It is possible to export both data and graphs directly from the plotting windows. To do this right click on the plot and select the export option.
 
 **Recording data**
+
 To record data hit the record data button at the top right corner of the interface. It turns green automatically when data is recording.
 Likewise, to record videos, hit the record video at the top left of the screen. 
 You can select where to save the data by using the file drop down menu and selecting the "save data path" option. Under the "file" menu you can also select the format of videos, images and the data saved.
 
+**Motorized stage movement**
+
+There are two primary methods for moving the motors manually. You can use the mouse tool to move the motors by clicking and dragging, or you can use the motor control widget. From this widget you can move in your specified direction at a specific speed. The movement speed can be set by typing the desired movement speed in the entry bar or selecting one of the preset speeds.
+
+Under the actions tab at the top of the interface you can save positions in the chamber, when you do this you also name the position. You find also the "go to saved position" option in the actions tab which lets you move to one of the saved positions.
+
+**Laser movement**
+
+You can manually control the laser movement from the laser movement widget. To do this use the sliders. There are 4 sliders, one per laser and axis. The sliders will also move if there is a protocol running indiciating how the lasers move. From this widget you can toggle the automatic laser alignment.
+
+**Autonomous control**
+
+To monitor and toggle the various autonomous protocols use the autocontroller widget. This is opened from the windows drop down menu. With the autocontroller widget you can both monitor and toggle the various autonomous protocols and use some of the autonomous subroutines (e.g. putting a particle in the pipette).
+
 #### Testing the software
+
 You can run the interface also without any of the devices connected. To do this follow the instructions to start the software, but add the extra argument -testmode by running the command:
 "python main.py -testmode"
 This will create testdrivers for the different devices which act similarily to the real devices from a software perspective, but are not connected to any physical hardware.
@@ -167,7 +184,7 @@ First prepare the parafilm by cutting it with the laser cutter. To do this place
 You can for instance use the nescofilm roller from the tweezerlab website <http://tweezerslab.unipr.it/cgi-bin/assemblies.pl/Show?_id=ddd9> for this.
 
 Load the pattern into the laser cutter and position it on the parafilm.
-The settings of the laser cutter will depend on the model used. We use vector engraving at ca 20% of max power.
+The settings of the laser cutter will depend on the model used. We use vector engraving at ca 50% of max power.
 
 **Preparing the holes of the glass slides**
 To make holes in the glass slides you can either use glass drill or a laser cutter.
