@@ -67,7 +67,6 @@ The SmartTrap system combines a central instrument controller with several indep
 
 ### Connecting the controllers
 Connecting the various controllers is simple. All connect to the host computer using USB. Importantly you will need to configure the softwware to know which COM port is used for which device. This is configured in the smarttrap_config.py by updating the appropriate port, which ports are used can be found in the device manager if you are using a windows pc.
-— video showing the addition of the electronics (and possibly the unit testing and examples?)
 
 ## Main program
 The main program runs on the host computer and is used to steer the entire system. It includes a graphical user interface (GUI) and the fully autonomous protocols.
