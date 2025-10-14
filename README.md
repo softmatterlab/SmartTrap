@@ -3,18 +3,18 @@
 ![Illustration of the SmartTrap system](Images/SystemIllustration.png)
 
 This GitHub page describes the SmartTrap system, including how to assemble and set up your own system.
-The system is described in our publication: <https://doi.org/10.48550/arXiv.2505.05290> 
-SmartTrap is the first system capable of running advanced experiments such as, single molecule force spectroscopy, autonomously for several hours. It can automatically trap particles and perform a range of measurements. Schematics and software are accessible on here making it easy to build you own SmartTrap or adapt parts of the code to your own different system. 
+The system is described in our publication, currently on arXiv: <https://doi.org/10.48550/arXiv.2505.05290> 
+The SmartTrap system is capable of running advanced experiments such as, single molecule force spectroscopy, autonomously for over 10 hours. It can automatically trap particles and perform a growing range of measurements. Schematics and software are accessible here making it easy to build you own SmartTrap or adapt parts of it to your own system. 
 
 ## Hardware
 The SmartTrap system is based on the MiniTweezers optical tweezers instrument, details of which you can find here: <http://tweezerslab.unipr.it/cgi-bin/home.pl>
-Below we provide lists of the components you need to assemble your own system along with guidlines on assembly and installation of the system.
+Here, we provide lists of the components you need to assemble your own system along with guidlines on assembly and installation of the system.
 
 ### Components
-The components of the system are split into separate units. Files listing the different components are found in the components folder.
+The components of the system are split into separate units, instrument, electronics controller etc. Files listing the different components are found in the components folder.
 
 ### Assembly instructions
-The assembly of the instrument is outlined in the video (). 
+The assembly of the instrument is outlined in the FullAssembly video (). 
 
 ## Electronics
 The optical tweezers instrument is controlled by a custom electronics controller. This controller consists of 3 separate circuit boards (PCBs) which are connected together via ribbon cables.
@@ -28,31 +28,31 @@ The 3 circuit boards of the controller are listed below.
 The Bill of Materials (BOM) files are in the [components folder](Components/) and the schematics of the boards can be found in [Instrument Schematics folder](<Instrument Schematics/>).
 
 ### Firmware
-The firmware is the program running on the controller, specifically the microcontroller, to steer it. It needs to be installed for the controller to work and it can be found in the folder Fimrware on this github page.
+The firmware is the program running on the controller, specifically the microcontroller, to steer it. It needs to be installed for the controller to work. The files can be found in the [Firmware](Firmware/)  on this github page.
 To install (flash) the firmware onto the controller do the following.
 
  - Connect the microcontroller to the host computer. For this use a USB-C cable.
  - Download the [Firmware folder](Firmware/).
- - Open the folder in the arduino IDE. Arduinos IDE which you can find here: <https://www.arduino.cc/en/software/>
- - Under tools select the arduino portenta H7 board and the correct COM port (should show up as Arduino Portenta )
+ - Open the folder in an arduino IDE. We recommend using Arduinos own IDE which you can find here: <https://www.arduino.cc/en/software/>
+ - Under tools select the arduino portenta H7 board and the correct COM port (should show up as Arduino Portenta h7).
  - Compile and upload the firmware by pressing the upload button in the top left corner of the IDE. There are a few extra packages needed to compile the software, if these are not installed the arduino IDE will automatically prompt you to install them.
 Once the firmware is correctly uploaded, and the microcontroller is connected to both the controller PCB and the host computer, a green light will be flashing periodically on the microcontroller.
 
-Note that other IDEs, such as Visual Studio Code, are possible to use but may require a bit more work to set up.
+Note that other IDEs, such as Visual Studio Code, are possible to use, but may require a bit more work to set up.
 
 ### Controllers and drivers
-The SmartTrap system combines a central tweezers controller with several independent devices, each with its own hardware controller and corresponding Python driver. All drivers follow a Python protocol, so replacing hardware requires only implementing the correct interface and updating the create_devices function in the smarttrap_config.py file. Further details can be found in the Software folder.
+The SmartTrap system combines a central instrument controller with several independent devices, each with its own hardware controller and corresponding Python driver. All drivers follow a Python protocol, so replacing hardware requires only implementing the correct interface and updating the create_devices function in the smarttrap_config.py file to use your own different device. Further details can be found in the Software folder.
 
 - **Optical tweezers instrument** - The instrument is controlled using the custom controller. This provides also control of the motors, laser movement and sensor readings.
   - Hardware: Custom electronics controller. Controls the motors, laser positioning and reads the various photosensors.
   - Driver: Communicates with the host computer with serial USB. The different subsystems, sample stage motors, laser actuators and photosensors, are each controlled by separate classes allowing them to be easily replaced without replacing the entire controller if need be.
-- **Camera** - Camera is monitored directly in the user interface and from this one can also record videos and the camera feed is used in the autonomous protocols.
+- **Camera** - The camera is monitored directly in the user interface. From the interface one can record videos, note that the camera feed is used in the autonomous protocols.
   - Hardware: Two options currently implemented: Thorlabs scientific cameras and Basler cameras. 
   - Driver: Connects automatically to the camera from the chosen suppliers. Other cameras can be implemented using the interface in camera_controls. The Basler cameras requires the PyPylon package while the Thorlabs cameras require installing the [thorlabs SDK](<https://www.thorlabs.com/software_pages/ViewSoftwarePage.cfm?Code=ThorCam>)
-- **Laser power control** - Enables adjusting the power of the two lasers directly from the user interface as well as during autonomous protocols
-  -  Hardware: Uses an OSTech laser diode driver and TEC controller [ds11-la0.5v14-pa02v14-t8545-691](<https://www.ostech.de/en/products/laser-drivers/ds11-t85/691>)
-  -  Driver: Uses serial communications, integrated in the OSTech laser
-- **Microfluidics** - The microfluidics is used to deliver particles into the system and digital control is necessary for autonomous procedures.
+- **Laser power control** - Enables adjusting the power of the two lasers directly from the user interface as well as during autonomous protocols.
+  -  Hardware: Uses an OSTech laser diode driver and TEC controller [ds11-la0.5v14-pa02v14-t8545-691](<https://www.ostech.de/en/products/laser-drivers/ds11-t85/691>).
+  -  Driver: Uses serial communications, integrated in the OSTech laser.
+- **Microfluidics** - The microfluidics is used to deliver particles into the system. It is possible to use manually operated syringes as well, but full digital control is necessary for autonomous procedures.
   - Hardware: Pump and valves used are from [ElveFlow](<https://elveflow.com/>), in particular the OB1 microfluidics pump and the Mux Wire V3 valve controller.
   - Driver: Requires ElveFlows proprietary software as well as the  the [LabView runtime engine](<https://www.ni.com/en/support/downloads/software-products/download.labview-runtime.html?srsltid=AfmBOoqhYo82koPNAGyVOaWM6Thr4NwTCO1KBI9eCecb0INE0mCxeVmB#569345>)
 - **Micropipette** The suction of the micropipette can be toggled by activating the pump connected to it.
@@ -76,9 +76,9 @@ The main program runs on the host computer and is used to steer the entire syste
 To install the main program first download the files in the Software folder of the github. It is recommended to use Anaconda (<https://www.anaconda.com/>) set up a separate python environment for the SmartTrap. The system has been tested on Windows 11, compatability with other operating systems has not been tested.
 The software is tested with Python 3.13 as well as a computer running Windows 11 and a CUDA ready graphics card. Older and newer versions of python will likely work if they support the required packages, but have not been extensively tested.
 Once a python environment has been created, do the following to install the required packages. 
-- Open a terminal in the desired environment
-- Navigate to the target folder with the downloaded files
-- Run the command: "python install_auto.py" to install the required packages
+- Open a terminal in the desired environment.
+- Navigate to the target folder with the downloaded files.
+- Run the command: "python install_auto.py" to install the required packages.
   - Recommended: Install pytorch with CUDA support,
    - To install cuda on windows <https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/> Install cuda prior to running the install command to automatically install pytorch with cuda support.
 
@@ -103,6 +103,9 @@ From the main window you can open the different widgets and perform various acti
 This widget is used to manually specify to the instrument which laser protocol to run. These protocols run on the microcontroller and steers the lasers, for instance moving the optical trap at a fix speed between two different positions.
 To set the parameters first write in the values you want and then hit set parameters. You can see the current values of the parameters in the column to the right.
 To start a protocol hit the "toggle protocol" button.
+
+**Mouse tools**
+There are several different tools you can use with the mouse. These are found and selected in the top left of the interface. With these you can for instance zoom in the camera view to an area of interest, measure distances and move the sample stage.
 
 **Plotting**
 
@@ -148,7 +151,6 @@ The sample chambers used in the SmartTrap are handmade.
 - Laser cutter
 - Hotplate
 - Pipette puller
- - List of components available in the components list
 - Scalpel
 - Tweezers
 
@@ -227,15 +229,11 @@ To install a chamber first take the sample holder from the system and remove the
 When making chambers you need a micropipette. You can make these yourself from glass capillaries using the pipette puller described here. 
 
 ### Puller assembly
+Assembly instructions and list of components available in [PipettePuller](<Components/PipettePuller/>).
 The puller consists of a metal base with two rods along which the pipette holder can slide.
 A platina wire is heated using resistive heating to heat up the capillary and melt it.
 
-The components needed and , are listed in the pipette puller components [list](<Components/PipettePuller/PipettePullerComponents.xlsx>).
-
-Assembling the puller is simple.
-
-
-### Using the puller
+### Using the pipette puller
 To use the pipette puller first mount a glass capillary in it and connect the cables to the power supply (does not matter which cable goes were). 
 Then start the puller software by navigating to the correct folder and running the command "python pipette_puller.py". This will open up a small interface from which you can control the power supply and thereby the pipette puller heating.
 The program is run by hitting the run button. This will start the heating. 
