@@ -28,3 +28,7 @@ Place this board on top of you controller stack.
 - Connect it to the host computer with a USB-C cable attached to the arduino portenta. The ARDUINO should be oriented as in the picture below. It will start blinking green when connected to the computer and the program is running.
 
 <img src="../Images/MicrocontrollerBoard.png" alt="ControllerBoard" width="50%"/>
+
+## Controller stand
+To mount the controller boards you can 3D print the controller stand from the stl file ControllerStand.
+It is recommended to also print the PCB spacers to put between the different PCBs. Use a set of long (ca 80 mm) M2 screws to mount the different boards and spacers effectively as in the pictures.
