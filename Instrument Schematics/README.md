@@ -1,4 +1,4 @@
-# Electronics schematics of the instrument
+# Electronics of the instrument
 Schematics of the controller are in the PDFs found here. Follow the steps below to connect the controller to your instrument and your controller power supply.
 
 ## Connecting the controller
