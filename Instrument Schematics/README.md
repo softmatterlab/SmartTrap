@@ -2,7 +2,7 @@
 Schematics of the controller are in the PDFs found here. Follow the steps below to connect the controller to your instrument and your controller power supply.
 
 ## Connecting the controller
-The controller consists of a stack of 3 separate boards which are connected together using ribbon cables. To connect the controller follow the steps below.
+The controller consists of a stack of 3 separate boards which are connected together using ribbon cables. To connect the controller follow the steps below. All the images are oriented in the same direction.
 ### Actuator board
 Place this board on the bottom of your controller stack
 - Connects to t 3 different power cables from the power supply. The 150 V (for the piezos) the, +- 15V (4 cables connector) and the 5V & 12V (3 cables connector)
