@@ -5,7 +5,7 @@ from time import sleep, time
 import numpy as np
 import serial
 from scipy.interpolate import griddata
-
+from instrument_driver import InstrumentDriver
 
 class PortentaCommsProcess(Process):
     """
@@ -94,7 +94,7 @@ class PortentaCommsProcess(Process):
         
         print('Serial channel opened')
 
-        while self.running.value: # added a .value here
+        while self.running.value:
             self.send_data_to_portenta()
             self.read_portenta()
             sleep(1e-4)
@@ -105,11 +105,16 @@ class PortentaCommsProcess(Process):
             print('Serial connection to minitweezers closed')
 
 
-class PortentaComms(Thread):
-
+# class InstrumentControllerThread(Thread):
+class SmartTrapDriver(InstrumentDriver):
+    """
+    This is the main thread that handles communications with the SmartTrap controller.
+    It continously reads data from the controller using the PortentaCommsProcess which, by running
+    in a separate process, allows it to communicate without being influenced by other processes.
+    """
     def __init__(self, c_p, data_channels):
-        Thread.__init__(self)
-        self.setDaemon(True)
+        # Thread.__init__(self)
+        # self.setDaemon(True)
         self.c_p = c_p
         self.portenta_data = Queue()
         self.data_channels = data_channels
@@ -118,6 +123,7 @@ class PortentaComms(Thread):
         self.indata = np.uint8(np.zeros(64))
         self.start_time = time()
         self.reset_motor_pos = True
+        self.connected = False
         nbr_multisamples = 1
 
         self.channel_array = self.c_p['single_sample_channels'].copy()
@@ -260,10 +266,11 @@ class PortentaComms(Thread):
         
     def calc_true_powers(self, chunk_length):
         """
-        Calculates the power (in mW) of the lasers
+        Calculates the power (in mW) of the lasers.
+        Compensate for the reflections of the lasers to get the true PSD sum readings.
+        ( What we would get if there were no reflections)
         """
-        # Compensate for the reflections of the lasers to get the true PSD sum readings
-        # ( What we would get if there were no reflections)
+
         self.data_channels['PSD_A_F_sum_compensated'].put_data(
             (self.data_channels['PSD_A_F_sum'].get_data(chunk_length)
              - self.data_channels['PSD_B_F_sum'].get_data(chunk_length)*self.c_p['reflection_B'])
@@ -283,7 +290,7 @@ class PortentaComms(Thread):
 
     def calc_forces(self, chunk_length):
         """
-        Calculate force and put in data channels
+        Calculate force and put them into the data channels.
         """
         self.data_channels['F_A_X'].put_data(
             self.data_channels['PSD_A_F_X'].get_data(chunk_length) * self.c_p['PSD_to_force'][0])
@@ -314,7 +321,7 @@ class PortentaComms(Thread):
 
     def calc_speeds(self, chunk_length, diff = 5):
         """
-        Calculates the speeds of the motors
+        Calculates the speeds of the motors, putting it into the data channels.
         """
         if self.data_channels['Motor_x_pos'].max_retrivable < chunk_length+diff:
             self.data_channels['Motor_x_speed'].put_data(
@@ -338,7 +345,7 @@ class PortentaComms(Thread):
 
     def read_data(self):
         """
-        Reads the data in the buffer
+        Reads the data in the buffer of the separate process.
         """
         if self.portenta_data.empty():
             return None
@@ -357,6 +364,9 @@ class PortentaComms(Thread):
                                             self.data_channels['dac_by'].get_data_spaced(1)[0]])
 
     def read_data_to_channels(self, chunk_length=256):
+        """
+        Reads all the data channels and sort the data into the correct data channels.
+        """
         # Chunk length is the number of 16 bit numbers sent each time
         # i.e half the number of bytes sent.
         numbers = self.read_data()
@@ -561,18 +571,40 @@ class PortentaComms(Thread):
                                    * self.c_p['PSD_to_force'][3])
         
 
+    # def run(self):
+    #     print("Starting portenta comms process")
+    #     self.communication_process = PortentaCommsProcess(
+    #         self.portenta_data, self.outdata, self.c_p['COM_port'], self.running_process)
+    #     self.communication_process.start()
+    #     print("Portenta comms process started")
+    #     while self.c_p['program_running']:
+    #         self.prepare_portenta_commands()
+    #         self.read_data_to_channels()
+    #         sleep(1e-3)
+    #     print("Setting running process to 0")
+    #     self.running_process.value = 0 # added a .value here
+    #     sleep(0.5)
+    #     self.communication_process.join()
+    def is_connected(self):
+        return self.connected
+
+    def connect(self):
+        if not self.connected:
+            self.communication_process = PortentaCommsProcess(
+                self.portenta_data, self.outdata, self.c_p['COM_port'], self.running_process)
+            self.communication_process.start()
+            self.connected = True
+    
+    def disconnect(self):
+        if self.connected:
+            print("Setting running process to 0")
+            self.running_process.value = 0 # added a .value here
+            sleep(0.5)
+            self.communication_process.join()
+            self.connected = False
+
     def run(self):
-        print("Starting portenta comms process")
-        self.communication_process = PortentaCommsProcess(
-            self.portenta_data, self.outdata, self.c_p['COM_port'], self.running_process)
-        self.communication_process.start()
-        print("Portenta comms process started")
-        # self.c_p['minitweezers_connected'] = True
-        while self.c_p['program_running']:
-            self.prepare_portenta_commands()
-            self.read_data_to_channels()
-            sleep(1e-3)
-        print("Setting running process to 0")
-        self.running_process.value = 0 # added a .value here
-        sleep(0.5)
-        self.communication_process.join()
+        self.prepare_portenta_commands()
+        self.read_data_to_channels()
+        sleep(1e-3)
+

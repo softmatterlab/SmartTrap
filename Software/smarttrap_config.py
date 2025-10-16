@@ -170,7 +170,7 @@ def create_devices(c_p, data_channels):
 
     # Set up the camera
     camera = None
-    try:            
+    try:
         # Cameras from two manufacturors are currently implemented, Thorlabs and Basler.
         # They use different classes. To change manufacturor change the camera_type in the
         # control parameters
@@ -234,5 +234,8 @@ def create_devices(c_p, data_channels):
     except Exception as E:
         print(E)
         print("Could not connect to the pipette pressure controller")
+    
+    from smarttrap_driver import SmartTrapDriver
+    instrument_driver = SmartTrapDriver(c_p, data_channels)
 
-    return camera, object_tracker, motor_controller, objective_motor, laser_A, laser_B, microfluidics_controller, valve_controller, pipette_pump
+    return camera, object_tracker, motor_controller, objective_motor, laser_A, laser_B, microfluidics_controller, valve_controller, pipette_pump, instrument_driver

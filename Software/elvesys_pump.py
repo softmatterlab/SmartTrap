@@ -68,6 +68,10 @@ class MUXWireValveController(ValveController):
 
 
 class ElvesysMicrofluidicsController(MicrofluidicsController):
+    """
+    Controller class to be used with the OB1 controlelr from Elvesys.
+    Allows for easily setting and checking the pressure on the different channels through the set_pressure and get_pressure functions.
+    """
     def __init__(self):
         self.Instr_ID = c_int32()
         self.nbr_channels = 3
@@ -75,6 +79,10 @@ class ElvesysMicrofluidicsController(MicrofluidicsController):
         self._connected = False
 
     def connect(self, address: str | None = None) -> None:
+        """
+        Conencts to a controller at the specified adress (e.g. "COM1").
+
+        """
         if not address:
             raise ValueError("address is required for Elvesys OB1")
         error = OB1_Initialization(address.encode("ascii"), 0, 0, 0, 0, byref(self.Instr_ID))
@@ -84,9 +92,12 @@ class ElvesysMicrofluidicsController(MicrofluidicsController):
         self._connected = True
 
     def disconnect(self) -> None:
+        """
+        Disconnects the controller
+        """
         if not self._connected:
             return
-        error = OB1_Close(self.Instr_ID.value)
+        error = OB1_Destructor(self.Instr_ID.value)
         if error != 0:
             raise RuntimeError(f"OB1_Close failed (error={error})")
         self._connected = False

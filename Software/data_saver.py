@@ -25,11 +25,14 @@ class SaverThreadInterface(abc.ABC, Thread):
         pass
 
 class DataSaverThread(SaverThreadInterface):
+    """
+    Thread used to save data in the background while the program is running.
+    """
 
     def __init__(self, c_p, data_channels):
         Thread.__init__(self)
-        self.c_p = c_p
-        self.data_channels = data_channels
+        self.c_p = c_p # Common control parameters
+        self.data_channels = data_channels # Data which is to be saved
         self.running = True
         self.sleep_time = 0.1
         self.start_idx = 0

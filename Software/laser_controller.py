@@ -57,11 +57,6 @@ from time import sleep, time
 from functools import partial
 import os
 
-# def parse_current_mA(reply: str) -> float:
-#     # take text before "ma", grab the last whitespace-separated token, convert
-#     return float(reply.lower().split('ma')[0].split()[-1])
-
-
 
 
 @runtime_checkable
@@ -288,7 +283,7 @@ class LaserControllerWidget(QWidget):
 
 
     def get_name(self, idx):
-        folder = '\particle_no-'+str(self.particle_no)
+        folder = f'\particle_no-{self.particle_no}'
         if not os.path.exists(self.c_p['recording_path']+folder):
             os.mkdir(self.c_p['recording_path']+folder)
         self.c_p['filename'] = (folder + '\particle_experiment_no-' + str(self.experiment_idx) +'_A' +

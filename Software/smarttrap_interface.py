@@ -33,7 +33,7 @@ from PyQt6.QtWidgets import (
     QToolBar,
 )
 
-import auto_controller_v6 as AutoController  # V4 is currently the latest
+import auto_controller_v6 as AutoController
 import laser_controller
 import motor_controls
 
@@ -41,11 +41,11 @@ from camera_controls import CameraThread, VideoWriterThread, CameraClicks, Camer
 from control_parameters import default_c_p, get_data_dicitonary_smarttrap, ControlParametersViewer, CurrentValueWindow
 from laser_move_widget import LaserPiezoWidget, MinitweezersLaserMove
 from live_plots import PlotWindow
-from smarttrap_driver import PortentaComms
+from instrument_driver import InstrumentControllerThread
 from laser_protocols import PullingProtocolWidget
 from QWidget_dock_container import QWidgetWindowDocker
 from real_time_tracking import TrackingControlWidget
-from smarttrap_config import get_defualt_config
+from smarttrap_config import get_defualt_config, create_devices
 from microfluidics_controllers import (
     MicrofluidicsControllerWidget,
     ConfigurePumpWidget,
@@ -472,8 +472,10 @@ class MainWindow(QMainWindow):
         if testmode:
             self.create_test_controllers()
         else:
-            self.create_controllers()
-
+            self.camera, self.object_tracker, self.motor_controller, self.objective_motor, \
+            self.laser_A, self.laser_B, self.microfluidics_controller, self.valve_controller, \
+            self.pipette_pump, self.instrument_driver = create_devices(self.c_p, self.data_channels)
+            # self.create_controllers()
         self.start_threads()
         self.plot_windows = None
 
@@ -541,85 +543,11 @@ class MainWindow(QMainWindow):
     def setImage(self, image):
         self.camera_window_label.setPixmap(QPixmap.fromImage(image))
 
-    def create_controllers(self):
-        """
-        Creates and initializes the various hardware controllers used in the optical tweezers
-        setup, including cameras, object tracking, motor controls, lasers, and microfluidics
-        controllers. This method sets up the necessary connections and configurations for each
-        controller based on the provided control parameters (`self.c_p`). It handles exceptions
-        that may arise during the initialization of each controller, ensuring that the system
-        can continue to operate even if some components fail to initialize.
-
-        # NOTE that it is in here changes are made to use different controllers
-        """
-
-        # Set up the camera
-        self.camera = None
-        try:            
-            # Cameras from two manufacturors are currently implemented, Thorlabs and Basler.
-            # They use different classes. To change manufacturor change the camera_type in the
-            # control parameters
-            if self.c_p['camera_type'] == "Thorlabs":
-                print("Thorlabs camera selected")
-                from thorlabs_scientific_cameras import ThorlabsScientificCamera as TSC
-                self.camera = TSC()
-            else:
-                print("Basler camera selected")
-                from basler_cameras import BaslerCamera
-                self.camera = BaslerCamera()            
-            self.c_p['camera_width'] = self.camera.get_sensor_size()[0]
-            self.c_p['camera_height'] = self.camera.get_sensor_size()[1]
-        except Exception as E:
-            print(f"Camera error!\n{E}")
-
-
-        # Set up the object tracker
-        from smarttrap_tracker import ObjectTrackerYOLO, ParticleCNN  # noqa: F401
-        self.object_tracker = ObjectTrackerYOLO(
-            YOLO_model_path=self.c_p['yolo_path'],
-            z_model_path=self.c_p['default_z_model_path'],
-            particle_size_limits = [1.3/self.c_p['microns_per_pix'], 7/self.c_p['microns_per_pix']],
-            )
-
-        # Set up the motor controllers
-        from smarttrap_motors import ObjectiveMotor, SmartTrapMotor
-
-        self.motor_controller = SmartTrapMotor(self.c_p, self.data_channels)
-        
-        self.objective_motor = ObjectiveMotor()
-        self.objective_motor.connect(self.c_p['objective_stepper_port'])
-
-        from OSTech_laser_controller import OSTechLaserController
-        self.laser_A = OSTechLaserController()
-        self.laser_B = OSTechLaserController()
-
-        # Set up the microfluidics controllers
-        from elvesys_pump import (
-            ElvesysMicrofluidicsController, MUXWireValveController, PipettePump)
-        self.microfluidics_controller = ElvesysMicrofluidicsController()
-        try:
-            self.microfluidics_controller.connect(self.c_p['pump_adress'])
-        except Exception as E:
-            print(E)
-            print("Could not connect to the microfluidics pump")
-
-        self.valve_controller = MUXWireValveController()
-        try:
-            self.valve_controller.connect(self.c_p['valve_adress'])
-        except Exception as E:
-            print(E)
-            print("Could not connect to the valve controller")
-
-        self.pipette_pump = PipettePump()
-        try:
-            self.pipette_pump.connect(self.c_p['pipette_pump_adress'])
-        except Exception as E:
-            print(E)
-            print("Could not connect to the pipette pressure controller")
-
-
     def create_test_controllers(self):
-
+        """
+        This function is called when running in testmode and provides the interface with mock 
+        devices that let it operate without any extrernal hardware.
+        """
         from camera_controls import TestCamera
         self.camera = TestCamera()
         self.camera.connect_camera()
@@ -649,6 +577,16 @@ class MainWindow(QMainWindow):
 
 
     def start_threads(self):
+        """
+        This function starts the various communications threads 
+            - Camera: Captures images continously
+            - Instrument controller: Reads the various photosensors and communicatates with 
+                the actuators on the instrument
+            - Video writer: Writes images to videos when recording
+            - data saver: Saves data in the background.
+            - Auto-controller: Controls the various autonomous protocols and handles tracking
+        """
+
         # Start camera thread
         self.camera_thread = None
         self.instrument_controller_thread = None
@@ -660,9 +598,8 @@ class MainWindow(QMainWindow):
 
 
         # Start instrument controller thread
-        # TODO move to create_controllers
         try:            
-            self.instrument_controller_thread = PortentaComms(self.c_p, self.data_channels)
+            self.instrument_controller_thread = InstrumentControllerThread(self.c_p, self.instrument_driver)
             self.instrument_controller_thread.start()
             sleep(0.1)
             
@@ -753,9 +690,10 @@ class MainWindow(QMainWindow):
     def set_gain(self, gain):
         """
         Sets the camera gain value based on the input from the gain_LineEdit widget.
-        Retrieves the gain value entered by the user, converts it to a float, and updates the camera parameters
-        dictionary (`self.c_p`) with the new gain value. Also flags that new camera settings are available.
-        If the input is invalid (e.g., empty or non-numeric), the function silently ignores the error.
+        Retrieves the gain value entered by the user, converts it to a float, and updates the camera
+        parameters dictionary (`self.c_p`) with the new gain value. Also flags that new camera
+        settings are available. If the input is invalid (e.g., empty or non-numeric), the function
+        silently ignores the error.
         Parameters
         ----------
         gain : float
