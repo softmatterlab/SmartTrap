@@ -1,5 +1,16 @@
+"""
+The various classes used for communications with the SmartTrap electronics controller are defined
+in here.
+----------------------------------------------------------------
+Classes:
+
+- PortentaCommsProcess: A separate proccess which only reads and writes to the serial USB bus of the
+microcontroller (an arudino portenta) on the SmartTrap electronics controller.
+- SmartTrapDriver: The driver class for the SmartTrap controller. Implements the InstrumentDriver
+protocol.
+"""
+
 from multiprocessing import Process, Value, Array, Queue
-from threading import Thread
 from time import sleep, time
 
 import numpy as np
@@ -105,16 +116,13 @@ class PortentaCommsProcess(Process):
             print('Serial connection to minitweezers closed')
 
 
-# class InstrumentControllerThread(Thread):
 class SmartTrapDriver(InstrumentDriver):
     """
     This is the main thread that handles communications with the SmartTrap controller.
     It continously reads data from the controller using the PortentaCommsProcess which, by running
     in a separate process, allows it to communicate without being influenced by other processes.
     """
-    def __init__(self, c_p, data_channels):
-        # Thread.__init__(self)
-        # self.setDaemon(True)
+    def __init__(self, c_p, data_channels):        
         self.c_p = c_p
         self.portenta_data = Queue()
         self.data_channels = data_channels
@@ -570,21 +578,6 @@ class SmartTrapDriver(InstrumentDriver):
                                    self.data_channels['PSD_B_P_Y'].get_data(chunk_length)))
                                    * self.c_p['PSD_to_force'][3])
         
-
-    # def run(self):
-    #     print("Starting portenta comms process")
-    #     self.communication_process = PortentaCommsProcess(
-    #         self.portenta_data, self.outdata, self.c_p['COM_port'], self.running_process)
-    #     self.communication_process.start()
-    #     print("Portenta comms process started")
-    #     while self.c_p['program_running']:
-    #         self.prepare_portenta_commands()
-    #         self.read_data_to_channels()
-    #         sleep(1e-3)
-    #     print("Setting running process to 0")
-    #     self.running_process.value = 0 # added a .value here
-    #     sleep(0.5)
-    #     self.communication_process.join()
     def is_connected(self):
         return self.connected
 
@@ -598,7 +591,7 @@ class SmartTrapDriver(InstrumentDriver):
     def disconnect(self):
         if self.connected:
             print("Setting running process to 0")
-            self.running_process.value = 0 # added a .value here
+            self.running_process.value = 0
             sleep(0.5)
             self.communication_process.join()
             self.connected = False

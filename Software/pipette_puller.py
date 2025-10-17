@@ -1,3 +1,18 @@
+"""
+The interface and functions needed to control the pipette puller. Run this from the terminal to
+start the interface used for pipette pulling.
+-------------------------------------------------------
+Classes
+
+- PowerSupply: Protocol for power supply used to power the pipette puller. Implement this protocol
+if you are looking to use a different power supply from the standard (TENMA) with your puller.
+- TenmaPullerPSU: Implementation of the PowerSupply class compatible with TENMA power supplies.
+- PSUControlPanel: Widget used for defining and controlling pipette pulling protocols.
+- CurrentProtocolThread: Thread used to gradually increase (ramp up) the current going trough the
+pipette puller and control the heating.
+- main: Run this to start the program.
+"""
+
 import serial
 import time
 import sys
@@ -159,6 +174,10 @@ class TenmaPullerPSU(PowerSupply):
 
 
 class PSUControlPanel(QWidget):
+    """
+    Widget used for defining and controlling pipette pulling protocols.
+    Will automatically connect to the default power supply.
+    """
     def __init__(self,
                  COM_PORT="COM5",
                  ramp_duration=8.5,
@@ -166,6 +185,8 @@ class PSUControlPanel(QWidget):
                  max_current=3.27,
                  ):
         super().__init__()
+
+        # Change the PSU here if you are using a different power supply.
         self.PSU = TenmaPullerPSU(COM_PORT)
         self.output_on = False
         self.protocol = [
@@ -398,6 +419,11 @@ class PSUControlPanel(QWidget):
         event.accept()
 
 class CurrentProtocolThread(QThread):
+    """
+    Thread used to gradually increase (ramp up) the current going trough the pipette puller and
+    control the heating. Will automatically also turn on and off the output (power).
+    """
+
     # Signal to update the GUI or status
     update_signal = pyqtSignal(str)
 

@@ -1,3 +1,13 @@
+"""
+This file contains the graphical user interface of the SmartTrap. 
+------------------------------------------------
+Classes:
+
+- ScreenWorker: A helper thread that updates the screen (camera feed) of the interface.
+- MainWindow: The main graphical user interface of SmartTrap. 
+"""
+
+
 import math
 import pickle
 import sys
@@ -57,11 +67,11 @@ DEFAULT_RADIUS_PIX = 250
 
 class ScreenWorker(QThread):
     """
-    Worker thread which updates th screen continoulsy with the images of the camera.
+    Worker thread which updates th screen continously with the images of the camera.
 
     Inherits from QThread to handler worker thread setup, signals and wrap-up.
-
     """
+
     changePixmap = pyqtSignal(QImage)
 
     def __init__(self, c_p, data, *args, **kwargs):

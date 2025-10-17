@@ -1,3 +1,13 @@
+"""
+Implementations of the motor_controls using the default SmartTrap controller.
+----------------------------------------------------
+Classes:
+
+- SmartTrapMotor: An implementation of the Motor which works with the default motors and electronics
+controller of the SmartTrap
+- ObjectiveMotor: An ObjectiveMotor interfacing the default arduino based objective stepper motor.
+"""
+
 from PyQt6.QtCore import QTimer
 import numpy as np
 from motor_controls import Motor, ObjectiveMovement
@@ -9,7 +19,6 @@ class SmartTrapMotor(Motor):
     Uses the control parameters and data channels to set the motor speeds and positions.
     Implements the MotorInterface abstract base class.    
     """
-    # TODO check that we get the movement directions correct everywhere
     def __init__(self, c_p, data_channels):
         self.c_p = c_p
         self.data_channels = data_channels

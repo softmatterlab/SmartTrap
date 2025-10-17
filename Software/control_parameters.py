@@ -21,7 +21,7 @@ class ControlParametersViewer(QWidget):
 
         self.vBox = QVBoxLayout()
         self.CreateTable()
-        self.vBox.addWidget(self.table)        
+        self.vBox.addWidget(self.table)
 
         self.timer = QTimer()
         self.timer.setInterval(500) # sets the fps of the timer
@@ -101,8 +101,8 @@ def default_c_p():
             # These are the channels which are sampled once per sample cycle. Default 
             'single_sample_channels':[
                             'Motor_x_pos', 'Motor_y_pos', 'Motor_z_pos',
-                            'message', # This is used for debugging, i.e sending data from the controller to the computer
-                            # for testing purposes.
+                            'message', # This is used for debugging, i.e sending data from the
+                            # controller to the computer for testing new functionality.
                             'dac_ax','dac_ay','dac_bx','dac_by',
                             'PSD_Force_A_saved',
             ],
@@ -132,13 +132,18 @@ def default_c_p():
                                     'trapped_x_force', 'trapped_y_force'],
 
             'save_idx': 0, # Index of the saved data
-            'averaging_interval': 1_000, # How many samples to average over in the data channels window
+            'averaging_interval': 1_000, # How many samples to average over in the data channels
+            # window
 
             # Piezo actuator outputs (for moving the lasers)
-            'piezo_A': np.uint16([32768, 32768]), # Target values for the piezos, in the range 0 to 2^15
+            # Target values for the piezos, in the range 0 to 2^15
+            'piezo_A': np.uint16([32768, 32768]), 
             'piezo_B': np.uint16([32768, 32768]),
             'portenta_command_1': 0, # Command to send to the portenta, zero force etc.
-            'portenta_command_2': 0, # Command to send to the portenta, dac controls, 0=> no autoalign, 1=> autoalign on A, 2=> autoalign on B
+            # Command to send to the portenta,  laser feedback control controls:
+            # 0=> no autoalign, 1=> autoalign on A, 2=> autoalign on B
+            'portenta_command_2': 0, # 
+
             'PSD_means':  np.uint16([0,0,0,0]), # Means of the PSD channels
             'PSD_force_means':  np.array([0,0,0,0]), # Means of the PSD channels
             'PSD_position_means': np.array([0,0,0,0]), # Means of the PSD channels
@@ -149,13 +154,15 @@ def default_c_p():
             'draw_pipette': False, # If the pipette should be drawn in the image
             'draw_particles': False, # If the particles should be drawn in the image
             'draw_z_text': False, # If the z-position of the particles should be drawn in the image
-            'draw_TnP_particles': False, # If the particles in the trap and pipette should be drawn in the image
+            'draw_TnP_particles': False, # If the particles in the trap and pipette should be drawn
+            # in the image
             'draw_lasers': False, # If the laser positions should be drawn in the image
             'draw_force': False,
 
             'z-predictions': np.array([]),
             'z-threshold': 8, # Threshold for the z-tracking
-            'z-offset': 0, # Offset for the z-tracking used to set a focused particles z-position to 0.
+            'z-offset': 0, # Offset for the z-tracking used to set a focused particles z-position
+            # to 0.
             'predicted_particle_radii': np.array([]),
  
             'pipette_in_frame': False,
@@ -165,20 +172,26 @@ def default_c_p():
             'accurate_tip_detection_needed': True,
             'multiple_particles_trapped': False,
             'pipette_tilt': 0, # tilt of the pipette, used to find the tip position.
-            'Trapped_particle_position': [0,0,0,0], # Position of the trapped particle in the image; x,y,z, radii in pixels
-            'pipette_particle_location': [1200,1200,0,0], # Location of the pipette particle in the image, TODO Use either position or location and be consistent in naming
-            'pipette_location': [0,0,0,0], # Location of the pipette in the image,x,y position of tip as well as width and height of pipette(in this order).
+            'Trapped_particle_position': [0,0,0,0], # Position of the trapped particle in the image;
+            # x,y,z, radii in pixels
+            'pipette_particle_location': [1200,1200,0,0], # Location of the pipette particle in the
+             # image,
+            'pipette_location': [0,0,0,0], # Location of the pipette in the image,x,y position of 
+            # tip as well as width and height of pipette(in this order).
             'pipette_tip_location': [0,0], # Location of the pipette tip in the image
 
 
             # Autocontroller parameters
             'loop_execution_time': 0, # Time it takes to execute the loop
-            'autocontroller_current_step': 'checking_pipette', # The current step of the autocontroller
-            'autonomous_experiment_type': 'DNA pulling', # The type of autonomous experiment to be performed, alternatives are molecule_stretching and electrostatic(currently)
+            'autocontroller_current_step': 'checking_pipette', # The current step of the 
+            # autocontroller
+            'autonomous_experiment_type': 'DNA pulling', # The type of autonomous experiment to be
+            # performed, alternatives are molecule_stretching and electrostatic(currently)
             'autonomous_experiment_types': ['DNA pulling','Elctrostatic repulsion',
                                             'Particle characterization', 'RBC Stretching'],
 
-            'autonomous_experiment': False, # If this is toggled we will try to do a full autonomous experiment.
+            'autonomous_experiment': False, # If this is toggled we will try to do a full autonomous
+            # experiment.
             'autonomous_experiment_states': ['checking_pipette','focusing_pipette',
                                              'searching_for_particle_1','sucking_into_pipette',
                                              'searching_for_particle_2','move_to_pipette_tip',
@@ -188,8 +201,8 @@ def default_c_p():
             'centering_on': False,
             'trap_particle': False,
             'search_and_trap': False,
-            'focus_z_trap_pipette': False, # Focus the particle in the trap with the one in the pipette
-            # parameters for focusing pipette
+            'focus_z_trap_pipette': False, # Focus the particle in the trap with the one in the
+            # pipette parameters for focusing pipette
             'center_pipette': False,
             'suck_into_pipette': False, # used to suck particle into pipette.
             'move_to_pipette_tip': False,
@@ -197,39 +210,45 @@ def default_c_p():
             'pipette_z_found': False,
             'move_piezo_2_target': False,
             'touch_particles': False,
-            'touch_counter': 0, # Keeps track of how many times we have tried to attach a molecule and failed. Needs to be reset when we have successfully attached a molecule or when starting on a new molecule
-            'drop_particle': False, # If set to true the piezos will move to drop the particle(s) in the trap
+            'touch_counter': 0, # Keeps track of how many times we have tried to attach a molecule
+             #  and failed. Needs to be reset when we have successfully attached a molecule or when
+             # starting on a new molecule drop_particle': False, # If set to true the piezos will 
+             # move to drop the particle(s) in the trap. Is a control parameter to allow for easy
+             # monitoring and debugging of new protocols.
             'stretch_molecule': False,
             'move_particle2pipette': False,
-            'find_laser_position': False, # Updates the laser position to the current closest particle
+            'find_laser_position': False, # Updates the laser position to the current closest 
+            # particle
             'focus_pipette': False, # Focus the pipette by optimizing sharpness
             'pipette_focus_startup': True,
             'pipette_sharpnesses': [],
             'pipette_sharpness_Z_pos': [],
 
-            'piezo_target_positions': [0,0,0,0], # A position rading of the PSDs can be saved and moved to on the position sensors, by default this is position 0,0 on both lasers.
+            'piezo_target_positions': [0,0,0,0], # A position rading of the PSDs can be saved and
+             #  moved to on the position sensors, by default this is position 0,0 on both lasers.
             'laser_position_A': [2660, 1502.3255814], # Default
             'laser_position_B': [2660, 1502.3255814], # Default,
             'laser_position_A_predicted': [2660, 1502.3255814],
             'laser_position_B_predicted': [2660, 1502.3255814],
             'laser_position': [2660, 1502.3255814], # Updated as the average of position A and B
             
-            # Position of the capillaries that push out beads 1 and 2, 1 being the beads going to the pipette and 2 the beads going to the trap
+            # Position of the capillaries that push out beads 1 and 2, 1 being the beads going to 
+            # # the pipette and 2 the beads going to the trap
             'capillary_1_position': [0,0,0], 
             'capillary_2_position': [0,0,0],
-            'pipette_location_chamber': [0,0,0], # Location of the pipette in the chamber, motor coordinates
+            'pipette_location_chamber': [0,0,0], # Location of the pipette in the chamber,
+             # motor coordinates
             'particle_type': 1, 
             'capillary_1_fluidics_channel': [0, 30, 3], 
             # first number is the channel numnber(0,1 or 2) and the second is the pressure when
             # pushing particles[mbar]. The last is the index of the valve used.
             'capillary_2_fluidics_channel': [2, 30, 3],
-            'central_fluidics_channel': [1, 50,1], # The central channel where the pipette is.
-            
+            'central_fluidics_channel': [1, 50,1], # The central channel where the pipette is.            
 
             # Autonomous protocol parameters parmeters
             'protocol_limits_dac': [20_000, 40_000], # The limits of the protocol in DAC units,
-            'measurement_time': 600, # Time(seconds) during which experiments will be performed on a single particle
-         
+            'measurement_time': 600, # Time(seconds) during which experiments will be performed 
+            # on a single particle         
 
             # Minitweezers controller parameters            
             'blue_led': 0, # Wheter the blue led is on or off, 0 for on and 1 for off
@@ -242,9 +261,11 @@ def default_c_p():
             # Automatic position calibration parameters
             'grid_size': 10, # Number of datapoints used when moving in the grid
             'calibration_points': np.zeros([10,10,17]),
-            'calibration_start': True, # Used to tell if the calibration should be reset (started from scratch).
+            'calibration_start': True, # Used to tell if the calibration should be reset 
+            # (started from scratch).
             'calibration_running': False,
-            'calibration_performed': False, # Sets to true when a new calibration has been performed and this should be updated in the read-portenta thread
+            'calibration_performed': False, # Sets to true when a new calibration has been performed
+            # and this should be updated in the read-portenta thread
 
             # Red blood cells (RBC) experiment parameters
             'laser_power_protocol_running': False,
@@ -290,7 +311,8 @@ def default_c_p():
             'minitweezers_target_pos': [0,0,0], # Should these start at 0?
             'minitweezers_target_speed': [0,0,0],
             'motor_travel_speed': [2_000, 2_000], # 5000 was somewhat high Speed of move to location.
-            'move_to_location': False, # Should the motors move to a location rather than listen to the speed?
+            'move_to_location': False, # Deterimnes if  the motors move to a location rather than
+            #  listen to the speed
             'saved_positions':[],
 
             # Stokes test parameters. Note that stokes test is used during calibration
@@ -358,7 +380,8 @@ class DataChannel:
         if nbr_points <= self.index-offset:
             return self.data[self.index-nbr_points-offset:self.index-offset]
         else:
-            return np.concatenate([self.data[self.index-nbr_points-offset:], self.data[:self.index-offset]])
+            return np.concatenate(
+                [self.data[self.index-nbr_points-offset:], self.data[:self.index-offset]])
 
     def get_data_spaced(self, nbr_points, spacing=1):
         nbr_points = min(nbr_points, self.max_retrivable)
@@ -381,8 +404,6 @@ def get_data_dicitonary_smarttrap():
         dict: A dictionary mapping channel names to their corresponding DataChannel objects.
     """
 
-    # TODO remove the ones that are not general but specific to the smartTrap (e.g PSD_A_P_X)
-    # move these to the config.
     data = [
     ['Time', 'Seconds', False], # Time measured by the computer.
     ['prediction_time','microseconds', True],

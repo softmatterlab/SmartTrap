@@ -1,3 +1,7 @@
+"""
+Installation script for the packages needed to run the (standard) SmartTrap
+"""
+
 #!/usr/bin/env python3
 import argparse
 import os

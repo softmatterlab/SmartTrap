@@ -1,3 +1,13 @@
+"""
+In this file the various classes used for tracking are defined.
+-----------------------------------
+Classes:
+
+- ObjectTracker: Abstract class for the tracking of particles and objects.
+- TestTracker: Mock implementation of ObjectTracker used for testing.
+- TrackingControlWidget: A QWidget used to configure the tracking in the system.
+"""
+
 from __future__ import annotations
 from typing import Protocol, runtime_checkable, Any, Tuple, List
 
@@ -10,7 +20,10 @@ from PyQt6.QtWidgets import (
 @runtime_checkable
 class ObjectTracker(Protocol):
     """
-    ObjectTracker parent class
+    ObjectTracker parent class. Assumes that analyze_frame is called first and tehn the particle
+    particle positions and pipette are extracted from the predict position functions. The z-position
+    is also made in similar manner.
+    The load functions are used to load the correct network(s).
     """
 
     # Pipeline
@@ -26,6 +39,9 @@ class ObjectTracker(Protocol):
 
 
 class TestTracker(ObjectTracker):
+    """
+    A mock implementation of the ObjecTracker used for testing.
+    """
     def __init__(self):
         self.pipett_location = [0, 0, 0, 0]  # x, y, width, height
         self.pipette_tip_location = [0, 0]  # x, y
@@ -61,6 +77,10 @@ class TestTracker(ObjectTracker):
 
 
 class TrackingControlWidget(QWidget):
+    """
+    Widget used to control the tracking in the system. Importantly allows users to turn off the
+    tracking which can be important for saving compute resources in less powerful computers.
+    """
     def __init__(self, c_p, object_tracker=None):
         super().__init__()
         self.c_p = c_p

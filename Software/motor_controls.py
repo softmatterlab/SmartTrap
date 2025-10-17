@@ -1,3 +1,20 @@
+"""
+This file defines the classes used to control the motors of the instrument.
+----------------------------------
+Classes:
+
+- Motor: Abstract class which defines an interface for the motors used to control the motors
+steering the sample stage.
+- ObjectiveMovement: Abstract class which is used for the motorized movement objective movement.
+- TestMotorController: A mock implementation of the Motor used for testing.
+- TestObjectiveMovement: A mock implementation of the ObjectiveMovement used for testing.
+- MotorControllerWindow: QWidget which contains buttons for manuall control of the motors and for
+setting the speed of them.
+- MotorMouseMove: A MouseTool used for moving the motors with the mouse (clicking or clicking and
+dragging on the camera feed screen).
+- ObjectiveStepperControllerToolbar: Toolbar for controlling the objective position.
+"""
+
 from __future__ import annotations
 from typing import Protocol, runtime_checkable, Sequence
 
@@ -43,7 +60,6 @@ class Motor(Protocol):
     is_moving() -> bool
         Return True if any axis is currently in motion.
     """
-    # TODO add connect function
     def set_speed(self, mm_per_s: float) -> None: ...
     def get_speed(self) -> float: ...
 
@@ -235,7 +251,7 @@ class MotorControllerWindow(QWidget):
 
     Parameters
     ----------
-    c_p : dict TODO remoe from here
+    c_p :
         Shared configuration/state dictionary. Expected keys (minimum):
             - 'blue_led' : int
                 State of the sample illumination LED.
@@ -385,7 +401,6 @@ class MotorControllerWindow(QWidget):
         main.addLayout(sample)
 
         # --- LED toggle ---
-        # TODO remove the blue led control parameter and replace with just a illumination on/off
         main.addWidget(QLabel("Sample LED ON/OFF"))
         self.led_button = QCheckBox()
         self.led_button.setChecked(self.c_p['blue_led'] == 0)

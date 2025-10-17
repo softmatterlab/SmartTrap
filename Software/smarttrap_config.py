@@ -1,14 +1,20 @@
+"""
+This file contains the system specific parameters such as which ports are used and calibration 
+factors.
+Provides functions for loading these configurations which are called from the interface once this 
+is initiated. Update the configs below to fit your own system.
+------------------------------------------
+Functions:
+
+- get_defualt_config: Loads a default configuration of the SmartTrap system. Defines ports,
+calibration parameters and paths.
+- get_data_dicitonary_smarttrap: Defines the data channels used by the SmartTrap. Here you can add
+more channels with data if need be. These can be saved and plotted.
+- create_devices: Creates the objects for controlling various hardware devices of the SmartTrap.
+"""
 
 import numpy as np
 from control_parameters import DataChannel
-# TODO be consistent with the use of port or adress
-# This will be (quite) systemd dependent.
-
-def get_devices():
-    """
-    Return the devices used in the smarttrap system.
-    """
-    pass
 
 
 def get_defualt_config():
@@ -72,7 +78,6 @@ def get_data_dicitonary_smarttrap():
         dict: A dictionary mapping channel names to their corresponding DataChannel objects.
     """
 
-    # TODO remove the ones that are not general but specific to the smartTrap (e.g PSD_A_P_X)
     # move these to the config.
     data = [
     ['Time', 'Seconds', False], # Time measured by the computer.
@@ -149,12 +154,6 @@ def get_data_dicitonary_smarttrap():
         data_dict[channel[0]] = DataChannel(channel[0], channel[1], [0], channel[2])
     return data_dict
 
-
-def save_config():
-    pass
-
-def load_config():
-    pass
 
 def create_devices(c_p, data_channels):
     """

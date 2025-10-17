@@ -1,3 +1,13 @@
+"""
+This file contains tools used to manually move the lasers in the SmartTrap system.
+--------------------------------------------------------
+Classes:
+
+- LaserPiezoWidget: A Qwwidget used to move the lasers of the two standard lasers in the SmartTrap.
+- MinitweezersLaserMove: A MouseTool used for manually moving the lasers in the sample by clicking
+and dragging.
+"""
+
 from PyQt6.QtWidgets import (QDoubleSpinBox, QSlider, QHBoxLayout,
     QPushButton, QVBoxLayout, QWidget, QLabel
 )
@@ -10,6 +20,12 @@ from mouse_tool import MouseTool
 
 
 class LaserPiezoWidget(QWidget):
+    """
+    Defines a simple widget for manually moving the two lasers of the system by using sliders.
+    Can also toggle the automatic alignment (autoalign) of the lasers.
+    The widget updates the laser sliders if there is a protcol separate running, indicating 
+    the relative laser position.
+    """
 
     def __init__(self, c_p, data_channels):
         super().__init__()
@@ -252,8 +268,11 @@ class LaserPiezoWidget(QWidget):
 
     
 class MinitweezersLaserMove(MouseTool):
-    
-    def __init__(self, c_p ):
+    """
+    A MouseTool used to  manually moving the lasers in the sample by clicking and dragging.
+    Left click for laser A and Right click for laser B.
+    """
+    def __init__(self, c_p):
         self.c_p = c_p
         self.speed_factor = 4_400 * self.c_p['microns_per_pix']
         self.x_prev_A = 0

@@ -1,3 +1,13 @@
+"""
+Defines the classes needed to use the microfluidics from elvesys.
+----------------------------------------------------
+Classes:
+
+- MUXWireValveController: A ValveController which is used to control the MUXWire controller.
+- ElvesysMicrofluidicsController: A MicrofluidicsController which is used with the OB1 microfluidics
+pump.
+- PipettePump: A Pipette pump used powered by a TENMA programmable power supply.
+"""
 
 import sys
 from email.header import UTF8
@@ -17,7 +27,7 @@ from Elveflow64 import *
 import serial
 import time
 import numpy as np
-from microfluidics_controllers import MicrofluidicsController, ValveController, PipettePump #, ValveState
+from microfluidics_controllers import MicrofluidicsController, ValveController, PipettePump
 
 from ctypes import c_int32, byref, c_double
 import numpy as np
@@ -70,7 +80,8 @@ class MUXWireValveController(ValveController):
 class ElvesysMicrofluidicsController(MicrofluidicsController):
     """
     Controller class to be used with the OB1 controlelr from Elvesys.
-    Allows for easily setting and checking the pressure on the different channels through the set_pressure and get_pressure functions.
+    Allows for easily setting and checking the pressure on the different channels through the 
+    set_pressure and get_pressure functions.
     """
     def __init__(self):
         self.Instr_ID = c_int32()
@@ -88,7 +99,8 @@ class ElvesysMicrofluidicsController(MicrofluidicsController):
         error = OB1_Initialization(address.encode("ascii"), 0, 0, 0, 0, byref(self.Instr_ID))
         print(f"OB1 init error: {error}, ID: {self.Instr_ID.value}")
         if self.Instr_ID.value < 0 or error != 0:
-            raise RuntimeError(f"Failed to connect OB1 at {address} (error={error}, id={self.Instr_ID.value})")
+            raise RuntimeError(
+                f"Failed to connect OB1 at {address} (error={error}, id={self.Instr_ID.value})")
         self._connected = True
 
     def disconnect(self) -> None:
@@ -111,7 +123,8 @@ class ElvesysMicrofluidicsController(MicrofluidicsController):
         target = c_double(float(value_mpa))
         error = OB1_Set_Press(self.Instr_ID.value, ch, target, byref(self.Calib), 1000)
         if error != 0:
-            raise RuntimeError(f"OB1_Set_Press failed (ch={channel}, mPa={value_mpa}, error={error})")
+            raise RuntimeError(
+                f"OB1_Set_Press failed (ch={channel}, mPa={value_mpa}, error={error})")
 
     def get_pressure(self, channel: str) -> float:
         if not self._connected:

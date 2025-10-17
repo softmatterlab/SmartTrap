@@ -1,3 +1,14 @@
+"""
+This file defines the classes needed to communicate with the instrument.
+---------------------------------------------
+Classes
+
+- InstrumentDriver: An abstract class which defines an interface for drivers for optical tweezers
+instruments.
+- InstrumentControllerThread: A thread which runs in the background and uses an InstrumentDriver
+to sample data from the opticalt tweezers instrument.
+"""
+
 from typing import Protocol
 from threading import Thread
 

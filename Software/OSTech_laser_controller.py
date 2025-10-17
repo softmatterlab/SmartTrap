@@ -1,3 +1,7 @@
+"""
+Implementation of the LaserController class compatible with laser controllers from OSTech.
+"""
+
 import serial
 from laser_controller import LaserController
 

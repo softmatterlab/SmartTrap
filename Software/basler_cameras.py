@@ -1,3 +1,9 @@
+"""
+Classes:
+- TimeoutException: Camera timeout exception
+- BaslerCamera: CameraProtocol which controls cameras from Basler
+"""
+
 import numpy as np
 from camera_controls import CameraProtocol
 from pypylon import pylon 
@@ -81,6 +87,10 @@ class BaslerCamera(CameraProtocol):
         self.AOI = [0,2000,0,2000]
 
     def capture_image(self):
+        """
+        Captures a single image. Will start continous grabbing with the OneByOne grab strategy
+        if this is not already toggled.
+        """
         if not self.is_grabbing:
             self.cam.StartGrabbing(pylon.GrabStrategy_OneByOne)
             self.is_grabbing = True
@@ -153,6 +163,9 @@ class BaslerCamera(CameraProtocol):
             print(f"Frame rate not accepted by camera, {ex}")
 
     def set_gain(self,gain):
+        """
+        Sets the gain on the camera (amplifies the image in software). 
+        """
         try:
             print(f"Setting gain to {gain}")
             self.cam.Gain.Value = int(gain)
@@ -163,7 +176,7 @@ class BaslerCamera(CameraProtocol):
 
     def set_AOI(self, AOI):
         '''
-        Function for setting AOI of basler camera to c_p['AOI']
+        Function for setting AOI of basler camera to c_p['AOI'].
         '''
         self.stop_grabbing()
         try:

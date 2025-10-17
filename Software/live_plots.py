@@ -1,10 +1,22 @@
+"""
+This files defines the various tools used to plot data from the SmartTrap system in real-time.
+-----------------------------------------------------
+Classes:
+
+- PlotLengthWindow: A QWidget window which lets users define the length of plots.
+- PlotSubsamplehWindow: A QWidget window which lets users define how many samples to average in the 
+real-time plot.
+- PlotAxisWindow: A QWidget window which lets users manually set the plot-axis limits with text
+input.
+- PlotWindow: A QMainWindow used for the live-plots (graphs) .
+"""
 
 from PyQt6.QtWidgets import (
     QMainWindow, QLineEdit, QLineEdit, QToolBar, QVBoxLayout, QWidget, QLabel
 )
 
 from PyQt6.QtCore import QTimer
-from PyQt6.QtGui import QAction, QDoubleValidator, QIntValidator, QColor
+from PyQt6.QtGui import QAction, QDoubleValidator, QIntValidator
 
 import pyqtgraph as pg
 from random import randint

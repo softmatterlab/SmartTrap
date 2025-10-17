@@ -485,7 +485,6 @@ class ForceLimitProtocol(ExperimentLaserProtocol):
                 else:
                     self.c_p['protocol_data'][0] = 11
         else:
-            # TODO complete this
             self.c_p['portenta_command_2'] == 2
             self.current_force = np.mean(self.data_channels['F_total_X'].get_data(100))
             if self.c_p['portenta_command_2'] == 1: # A is being autoaligned
@@ -513,7 +512,6 @@ class ForceLimitProtocol(ExperimentLaserProtocol):
 
     def stop_protocol(self) -> None:
         self._running = False
-        # TODO ensure smooth continuation once protocol is turned off
         self.c_p['protocol_data'][0] = 0
 
 
@@ -662,7 +660,6 @@ class PushAndWaitProtocol(ExperimentLaserProtocol):
 
 
         if self.entanglement_step == 'pushing':
-            # TODO have this depend on the movement direction
             # Force negative when pushing, assuming direction=right
             if self.current_force < self.push_force_limit: 
                 # Switch direction
@@ -876,7 +873,6 @@ class PullingProtocolWidget(QWidget):
             self.boxes[idx].setToolTip(tooltips[idx])
             self.parameter_labels[idx].setText(descriptions[idx])
             self.parameter_values[idx].setText(str(parameters[idx]))
-        # TODO reset the parameters not used
 
     def set_parameters(self):
         parameters = [self.parameter_0_box.value(), self.parameter_1_box.value(),
