@@ -1,3 +1,13 @@
+"""
+Here the functionality used to save data from the instrument is defined.
+
+---------------------------------------------
+Classes:
+
+- SaverThreadInterface: An abstarct class for defining a data saver.
+- DataSaverThread: The default data saver. A separate thread which saves the data from the SmartTrap.
+"""
+
 import numpy as np
 from threading import Thread
 from time import sleep
@@ -25,11 +35,14 @@ class SaverThreadInterface(abc.ABC, Thread):
         pass
 
 class DataSaverThread(SaverThreadInterface):
+    """
+    Thread used to save data in the background while the program is running.
+    """
 
     def __init__(self, c_p, data_channels):
         Thread.__init__(self)
-        self.c_p = c_p
-        self.data_channels = data_channels
+        self.c_p = c_p # Common control parameters
+        self.data_channels = data_channels # Data which is to be saved
         self.running = True
         self.sleep_time = 0.1
         self.start_idx = 0
@@ -40,7 +53,8 @@ class DataSaverThread(SaverThreadInterface):
 
     def start_saving(self):
         self.start_idx = self.data_channels['PSD_A_P_X'].index
-        self.start_idx_motors = self.data_channels['Motor_x_pos'].index # Fewer data points for motors
+        # Fewer data points for motors and the real-time tracking
+        self.start_idx_motors = self.data_channels['Motor_x_pos'].index 
         self.start_idx_prediction = self.data_channels['trapped_particle_x_position'].index
         self.saving = True
         self.data_idx += 1
@@ -90,18 +104,23 @@ class DataSaverThread(SaverThreadInterface):
 
         for channel in self.data_channels:
             if self.data_channels[channel].saving_toggled:
-                if channel in self.c_p['multi_sample_channels'] or channel in self.c_p['derived_PSD_channels']:
+                if (channel in self.c_p['multi_sample_channels'] 
+                    or channel in self.c_p['derived_PSD_channels']):
                     if self.start_idx < self.stop_idx:
-                        data[channel] = self.data_channels[channel].data[self.start_idx:self.stop_idx]
+                        data[channel] = self.data_channels[channel].data[\
+                            self.start_idx:self.stop_idx]
                     else:
-                        data[channel] = np.concatenate([self.data_channels[channel].data[self.start_idx:],
-                                                        self.data_channels[channel].data[:self.stop_idx]])
+                        data[channel] = np.concatenate(
+                            [self.data_channels[channel].data[self.start_idx:],
+                             self.data_channels[channel].data[:self.stop_idx]])
                 else:
                     if self.start_idx_motors < self.stop_idx_motors:
-                        data[channel] = self.data_channels[channel].data[self.start_idx_motors:self.stop_idx_motors]
+                        data[channel] = self.data_channels[channel].data[\
+                            self.start_idx_motors:self.stop_idx_motors]
                     else:
-                        data[channel] = np.concatenate([self.data_channels[channel].data[self.start_idx_motors:],
-                                                        self.data_channels[channel].data[:self.stop_idx_motors]])
+                        data[channel] = np.concatenate(
+                            [self.data_channels[channel].data[self.start_idx_motors:],
+                             self.data_channels[channel].data[:self.stop_idx_motors]])
 
         self.start_idx = self.stop_idx
         self.start_idx_motors = self.stop_idx_motors
@@ -143,7 +162,8 @@ class DataSaverThread(SaverThreadInterface):
 
         for channel in self.data_channels:
             if self.data_channels[channel].saving_toggled:
-                # Handle the different rates at which the channels are sampled to get the right data to be saved.
+                # Handle the different rates at which the channels are sampled to get the right data
+                # to be saved.
                 if channel in self.c_p['multi_sample_channels'] or \
                     channel in self.c_p['derived_PSD_channels']:
 

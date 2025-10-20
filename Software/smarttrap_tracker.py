@@ -1,3 +1,12 @@
+"""
+Here the tracking classes used in the SmartTrap are implemented.
+-------------------------------------------------------
+Classes
+
+- ParticleCNN: The convolutional network used to track the focal (z) position of particles.
+- ObjectTrackerYOLO: An implementation of the ObjectTracker based on YOLO. Uses also the ParticleCNN
+for tracking 3d positions-
+"""
 
 import cv2
 import torch
@@ -48,7 +57,6 @@ def load_yolov5_model(model_path):
         return torch.hub.load(".", "custom", path=model_path, source="local", force_reload=True)
     finally:
         torch.load = orig_load
-    # model = torch.hub.load('.', 'custom', path=model_path, source='local') 
     return model
 
 
@@ -72,7 +80,8 @@ class ObjectTrackerYOLO(ObjectTracker):
         self.confidence_threshold_pipette = 0.5 # Detection limit for the pipette(YOLO model)
         self.results = None
 
-        # Particle size limits used to reduce risk of trapping very small or large particles (usually noise)
+        # Particle size limits used to reduce risk of trapping very small or large particles
+        # (usually noise)
         self.particle_lower_size_limit = particle_size_limits[0]
         self.particle_upper_size_limit = particle_size_limits[1]
         self.crop_width = int(64)  # Width of the crops for z-detection
@@ -81,7 +90,6 @@ class ObjectTrackerYOLO(ObjectTracker):
         self.results = self.model(frame).xywh[0].cpu().numpy()
 
     def predict_particle_positions(self):
-        # TODO have this handle multiple different cases: e.g different numbers of particles etc
         particle_positions = []
         radii = []
         for prediction in self.results:
@@ -192,7 +200,8 @@ class ObjectTrackerYOLO(ObjectTracker):
 
         # Convert list of crops to a tensor and prepare for the model
         if crops:  # Check if there are any crops to process
-            crops_tensor = torch.tensor(crops, dtype=torch.float32).permute(0, 3, 1, 2).to(self.device)
+            crops_tensor = torch.tensor(
+                crops, dtype=torch.float32).permute(0, 3, 1, 2).to(self.device)
 
             with torch.no_grad():  # No gradients needed for inference
                 predictions = self.z_model(crops_tensor)

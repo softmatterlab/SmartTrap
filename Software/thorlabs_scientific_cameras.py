@@ -1,3 +1,12 @@
+"""
+Wrapper functions for using Thorlabs Scientific cameras with the SmartTrap system.
+------------------------------------------------------
+Classes
+
+- ThorlabsScientificCamera: Implementation of the CameraProtocol compatible with the thorlabs 
+scientific camera.
+"""
+
 import numpy as np
 import os
 from thorlabs_tsi_sdk.tl_camera import TLCameraSDK, OPERATION_MODE
@@ -10,6 +19,10 @@ import sys
 
 
 def configure_path():
+    """
+    Configures the path to the Thorlab dlls to simplify imports.
+    """
+
     is_64bits = sys.maxsize > 2**32
     relative_path_to_dlls = '.' + os.sep + 'dlls' + os.sep
 
@@ -24,7 +37,8 @@ def configure_path():
     except NameError:
         absolute_path_to_file_directory = os.getcwd()
 
-    absolute_path_to_dlls = os.path.abspath(absolute_path_to_file_directory + os.sep + relative_path_to_dlls)
+    absolute_path_to_dlls = os.path.abspath(
+        absolute_path_to_file_directory + os.sep + relative_path_to_dlls)
     
     os.environ['PATH'] = absolute_path_to_dlls + os.pathsep + os.environ['PATH']
 
@@ -37,6 +51,10 @@ def configure_path():
 
 
 class ThorlabsScientificCamera(CameraProtocol):
+    """
+    Implementation of the CameraProtocol compatible with Thorlabs Scientific cameras.
+    Requires that the Thorlabs Scientific camera software is installed.
+    """
     def __init__(self):
         configure_path()
         self.capturing = False
@@ -51,7 +69,8 @@ class ThorlabsScientificCamera(CameraProtocol):
             if len(available_cameras) > 0:
                 self.camera = self.sdk.open_camera(available_cameras[0])
                 self.camera.is_frame_rate_control_enabled = False
-                self.camera.frames_per_trigger_zero_for_unlimited = 0  # Set unlimited frame grabbing
+                # Set unlimited frame grabbing
+                self.camera.frames_per_trigger_zero_for_unlimited = 0  
                 self.camera.arm(2)  # Arm the camera for capture
                 sleep(0.2)
                 print("Thorlabs camera connected")
@@ -74,14 +93,16 @@ class ThorlabsScientificCamera(CameraProtocol):
 
     def capture_image(self):
         if not self.is_grabbing:
-            self.camera.exposure_time_us = self.exposure_time  # Set default exposure time (modify as needed)
+            # Set default exposure time (modify as needed)
+            self.camera.exposure_time_us = self.exposure_time 
             self.camera.issue_software_trigger()
             self.is_grabbing = True
 
         try:
             frame = self.camera.get_pending_frame_or_null() # Get the latest frame
             if frame is not None:
-                return np.copy(frame.image_buffer).astype(np.uint8) # Return the captured image as a NumPy array
+                # Return the captured image as a NumPy array
+                return np.copy(frame.image_buffer).astype(np.uint8) 
             else:
                 print("No frame available!")
                 return None
@@ -150,8 +171,12 @@ class ThorlabsScientificCamera(CameraProtocol):
 
     def get_sensor_size(self):
         try:
-            width = int(self.camera.roi_range.lower_right_x_pixels_max - self.camera.roi_range.upper_left_x_pixels_min +1)
-            height = int(self.camera.roi_range.lower_right_y_pixels_max - self.camera.roi_range.upper_left_y_pixels_min +1)
+            width = int(
+                self.camera.roi_range.lower_right_x_pixels_max \
+                    - self.camera.roi_range.upper_left_x_pixels_min +1)
+            height = int(
+                self.camera.roi_range.lower_right_y_pixels_max \
+                    - self.camera.roi_range.upper_left_y_pixels_min +1)
             return width, height
         except Exception as ex:
             print(f"Error getting sensor size: {ex}")

@@ -1,3 +1,25 @@
+"""
+This file defines the autonomous protocols and functions.
+
+------------------------------
+Classes:
+
+- StokesTestWidget: A small widget which is used to configure and run stokes drag tests.
+- AutonomousProtocol: An autonomous protocol class which defines the functions the autonomous
+protocols need to implement.
+- DNAPulling: An AutonomousProtocol which runs the DNA pulling experiment
+- ElectrostaticRepulsion: An AutonomousProtocol which runs the electrostatic particle-particle
+interaction experiment
+- ParticleCharacterization: An AutonomousProtocol which runs the particle characterization 
+experiment (selecting particles in a specific size range and measuring their size)
+- RBCStretching: An AutonomousProtocol which runs the red blood cell stretching experiment.
+- SelectLaserPosition: A MouseTool which is used to indicate where in the camera feed the lasers
+are.
+- AutoControllerThread: A thread which runs the various autonomous protocols and subroutines as 
+well as the real-time image analysis.
+"""
+
+
 import numpy as np
 from PyQt6.QtWidgets import (QComboBox,
     QPushButton, QVBoxLayout, QWidget, QFileDialog,
@@ -10,9 +32,6 @@ from typing import Protocol
 from mouse_tool import MouseTool
 from threading import Thread
 from time import sleep, time
-# import torch
-# import torch.nn as nn
-# from collections import deque
 
 import cv2
 
@@ -47,6 +66,11 @@ class StokesTestWidget(QWidget):
         self.timer.start()
     
     def init_ui(self):
+        """
+        Initializes the user interface with buttons for setting positions and 
+        toggling the stokes test.        
+        """
+
         layout = QVBoxLayout()
         self.setWindowTitle("Stokes Test")
 
@@ -136,22 +160,23 @@ class AutonomousProtocol(Protocol):
     """
     Interface class for the autonomous protocols.
     The protocols are run using the run method which is called repeatedly by the AutoController.
-    The protocol should maintain its own state and return the current state as a string when run is
-    called. The protocol can be started and stopped using the start and stop methods.    
+    The protocol should maintain its own state (e.g. "aligning particles") and return the current 
+    state as a string when run is called. The protocol can be started and stopped using the start
+    and stop methods.    
     """
     def is_running(self) -> bool: ...
     def start(self) -> None: ...
     def stop(self) -> None: ...
     def run(self) -> str: ... # Should return the part of the autonomous protocol is being executed
-    def reset_experiment(self) -> None:... # This should bring back the protocol to the starting state
-    # And reset parameters accordingly (e.g. pulling limits)
+    def reset_experiment(self) -> None:... # This should bring back the protocol to the starting 
+    # state and reset parameters accordingly (e.g. pulling limits)
 
 class DNAPulling(AutonomousProtocol):
     """
     AutonomousProtocol which is used to perform autonomous DNA pulling expriments.
-    The protocol first collects two particles, one is trapped and the other is placed in the pipette.
-    Then it tries to fish for a DNA molecule by touching the particles together and moving them
-    apart repeatedly until a molecule is detected. Once a molecule is detected it aligns the
+    The protocol first collects two particles, one is trapped and the other is placed in the
+    pipette. Then it tries to fish for a DNA molecule by touching the particles together and moving
+    them apart repeatedly until a molecule is detected. Once a molecule is detected it aligns the
     particles in x and z and then finds the pulling limits. Finally it starts the pulling protocol.
     """
 
@@ -284,13 +309,17 @@ class DNAPulling(AutonomousProtocol):
         return True # DNA present and aligned
 
     def find_pulling_limits(self):
-        # Check if upper limit of protocol is found, if not move up
-
+        """
+        Locates appropriate pulling limits for the DNA pulling protocol. These are based on the
+        stretch_distance and the stretch_force set in the initation of the protocol.
+        """
+        
         dy = self.c_p['pipette_particle_location'][1] - self.c_p['Trapped_particle_position'][1] 
         radii_sum = (self.c_p['pipette_particle_location'][3]
                      + self.c_p['Trapped_particle_position'][3])
         y_force = np.abs(np.mean(self.auto_controller.data_channels['F_total_Y'].get_data(20)))
 
+        # Check if upper limit of protocol is found, if not move up
         if not self.limits_found[0]:
             # moving up to stretch the molecule
             self.auto_controller.move_up_and_down(max_dist=self.stretching_distance * 1.7,
@@ -318,8 +347,8 @@ class DNAPulling(AutonomousProtocol):
                 return "Force too high too soon"
 
         if not self.limits_found[1] and self.limits_found[0]:
-            # Pushing the particles down
 
+            # Pushing the particles down
             # how close in terms of radiis the particles are allowed to get to each other.
             position_limit = 1.2 
             self.auto_controller.move_up_and_down(max_dist=self.stretching_distance,
@@ -343,6 +372,9 @@ class DNAPulling(AutonomousProtocol):
                     return "Force too high too soon"
 
     def start_pulling_protocol(self):
+        """
+        Initiates the pulling protocol to run on the electronics controller for smooth operation.
+        """
         self.protocol_started = True
         # Set the protocol
         split_16_bit = lambda num: [(num >> 8) & 0xFF, num & 0xFF] 
@@ -357,6 +389,9 @@ class DNAPulling(AutonomousProtocol):
             self.auto_controller.main_window.record_data()
 
     def terminate_pulling_protocol(self):
+        """
+        Safely terminates the pulling protocol by turning it off on the microcontroller.
+        """
         self.limits_found = [False,False]
         self.c_p['protocol_data'][0] = 0
 
@@ -469,6 +504,11 @@ class ElectrostaticRepulsion(AutonomousProtocol):
         self.auto_controller.restart_experiment()
     
     def align_particles(self):
+        """
+        Aligns the particle in the optical trap to the one in the pipette. Does so with greater
+        care than what is needed for single molecule experiments.        
+        """
+
         # Move in y until we get a positive force or the particles are touching.  
         # this will always be positive since the pipette is below the trapped particle
         dy = self.c_p['pipette_particle_location'][1] - self.c_p['Trapped_particle_position'][1] 
@@ -520,6 +560,12 @@ class ElectrostaticRepulsion(AutonomousProtocol):
             self.auto_controller.main_window.record_data()
 
     def find_protocol_limits(self):
+        """
+        Locates appropriate positions for the movement protocol of the experiment (run on the
+        electronics controller for smooth operation). The limits are based on the max_force set in 
+        the initiation of the protocol.
+        """
+
         # Find limit on moving down first, then on moving up.
         dy = (self.c_p['pipette_particle_location'][1] - self.c_p['Trapped_particle_position'][1]) \
             * self.c_p['microns_per_pix']
@@ -574,6 +620,9 @@ class ElectrostaticRepulsion(AutonomousProtocol):
         return True
     
     def terminate_protocol(self):
+        """
+        Safely stop the protocol running on the microcontroller and terminate the saving of data.
+        """
         self.limits_found = [False,False]
         self.c_p['protocol_data'][0] = 0
         if self.auto_controller.data_saver.is_saving():
@@ -581,6 +630,10 @@ class ElectrostaticRepulsion(AutonomousProtocol):
             self.auto_controller.main_window.record_data()
 
     def run(self) -> str:
+        """
+        Full autonomous procedure for electrostatic measurements.
+        """
+
         if not (self.auto_controller.particle_trapped 
                 and self.auto_controller.particle_in_pipette
                 and self.auto_controller.check_particles_can_touch_with_piezo()):
@@ -594,8 +647,7 @@ class ElectrostaticRepulsion(AutonomousProtocol):
             return self.stage
 
         if self.stage == "collecting_particles":
-            self.stage = "aliging_particles"
-            
+            self.stage = "aliging_particles"            
 
         if self.stage == "aliging_particles":
             if self.align_particles():
@@ -850,6 +902,9 @@ class AutoControlWidget(QWidget):
         self.timer.start()
 
     def init_ui(self):
+        """
+        Initializes the user interface components.
+        """
         layout = QVBoxLayout()
         self.setWindowTitle("Auto Controller")
 
@@ -1123,6 +1178,10 @@ class AutoControlWidget(QWidget):
         return layout
 
     def refresh(self):
+        """
+        Updates the various toggle buttons to reflect which routines are being executed, e.g. 
+        "searching for a particle".
+        """
         self.z_focus_button.setChecked(self.c_p['focus_z_trap_pipette'])
         self.pipette_focus_button.setChecked(self.c_p['focus_pipette'])
         self.move2area_above_button.setChecked(self.c_p['move_to_pipette_tip'])
@@ -1204,6 +1263,10 @@ class SelectLaserPosition(MouseTool):
         self.pen2 = QtGui.QPen(QtGui.QColor(255, 0, 0))
 
     def draw(self, qp):
+        """
+        Draws the laser positions (A and B) in the camera feed based on where they should be when
+        measuring their location with the PSD detectors.
+        """
         qp.setPen(self.pen)
         r = 10
         x = int((self.c_p['laser_position_A_predicted'][0] - self.c_p['AOI'][0])
@@ -1249,7 +1312,9 @@ class SelectLaserPosition(MouseTool):
 class AutoControllerThread(Thread):
     """
     Thread for running the auto controller in the background. Also handles the deep learning
-    analysis.
+    image analysis. Can run the different AutonomousProtocols. To add more Autonomous protocols 
+    add them in the self.protocols in the __init__ below and in the autonomous_experiment_types
+    control_parameter (just a string with the name) to have it toggleable from the control widget.
     """
     def __init__(self, c_p, data_channels, object_tracker, motor_controller,main_window, data_saver,
                  pipette_pump):
@@ -1434,6 +1499,11 @@ class AutoControllerThread(Thread):
 
     
     def check_in_pipette(self, threshold=3_000, offset=np.array([0, 0]), trapped_idx=None):
+        """
+        Checks if a particle is in the pipette. Saves the result of this in the approriate 
+        data_channel and control parameter (c_p). Check is performed by measuring the distance
+        between the particle position and pipette tip position.
+        """
         if (not self.c_p['pipette_located'] or not self.c_p['tracking_on']
             or self.c_p['pipette_location'] is None):
             self.data_channels['particle_in_pipette'].put_data(0)
@@ -1475,9 +1545,8 @@ class AutoControllerThread(Thread):
 
     def move_piezos_2_saved_positions(self, positions, threshold=5e-4):
         """
-        Moves the piezos to a saved position.
-        Usefull for resetting after having done a trapping
-        Returns False if the piezos are not at the target position.
+        Moves the piezos to a saved position (on the PSDs, usually (0,0)). Usefull for resetting
+        after having done a trapping. Returns False if the piezos are not at the target position.
         Returns True if the piezos are at the target position or if they cannot be moved further.
         """
 
@@ -1535,7 +1604,7 @@ class AutoControllerThread(Thread):
 
     def drop_particle(self):
         """
-        Function that drops the trapped particle(s).
+        Function that drops the trapped particle(s) by moving the lasers.
         Used when multiple particles are in the trap but you really only want one.
 
         Moves away one of the lasers so that the particle is no longer trapped.
@@ -1610,12 +1679,14 @@ class AutoControllerThread(Thread):
         for pos in self.c_p['predicted_particle_positions']:
             if not self.is_point_in_rectangle(pos, top_left, bottom_right):
                 particle_positions.append(pos)
-        # self.c_p['tmp_predictions'] = np.array(particle_positions)
 
         return np.array(particle_positions)
 
     def center_on_particle(self, center):
-        # Also break when particle is trapped.
+        """
+        Move the stage to center the specified center(usually optical trap postion), on the closest
+        particle.
+        """
         # Center is the laser position on which to center the particle.
        
         if not self.c_p['tracking_on']:
@@ -1646,9 +1717,8 @@ class AutoControllerThread(Thread):
                 return True
             return False
 
-        fac = 100 / ((dx**2 + dy**2)**0.5) # changed 25_000 to 100
+        fac = 100 / ((dx**2 + dy**2)**0.5)
         if self.c_p['mouse_params'][0] == 0:
-            # self.motor_controller.move_at_speed(int(dx*fac), int(dy*fac))
             self.motor_controller.move_at_speed(int(dy*fac), int(dx*fac)) # Changed here
             print("Moving at speed x:{dx} y:{dy} ")
             self.movin2trap = True
@@ -1705,7 +1775,7 @@ class AutoControllerThread(Thread):
 
         
     def find_true_laser_position(self):
-
+        
         if not self.check_trapped() or not self.c_p['tracking_on']:
             print("No particles detected close enough to current laser position")
             return
@@ -1805,7 +1875,7 @@ class AutoControllerThread(Thread):
         if in_position:            
             return True
 
-        # Give some time between the moves(1 second)
+        # Give some time between the moves(0.4 seconds)
         if time() - self.last_move_time < 0.4:
             return False
 
@@ -1830,6 +1900,7 @@ class AutoControllerThread(Thread):
     def find_max_sharpness(self, starting_guess, max_sharpness, direction,range=200, step=5):
         """
         Function that finds the maximum sharpness in a given direction from a starting position.
+        Used when focusing things like the pipette.
         """
         sharpness = self.compute_gradient_sharpness()
 

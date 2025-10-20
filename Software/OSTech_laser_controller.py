@@ -1,3 +1,7 @@
+"""
+Implementation of the LaserController class compatible with laser controllers from OSTech.
+"""
+
 import serial
 from laser_controller import LaserController
 
@@ -29,7 +33,6 @@ class OSTechLaserController(LaserController):
                 write_timeout=2,
             )
             print("Connected laser at adress "+adress)
-            # self.init_laser() # TODO check if this does anything useful
         except Exception as E:
             print("Failed to connect laser", E)
             self.laser_ser = None

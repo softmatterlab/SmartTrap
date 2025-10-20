@@ -4,10 +4,14 @@ the graphical interface.
 ----------------------------
 Classes:
 
-- CameraClicks: Used to set the area of interest of the camera by clicking and dragging on the screen
-- CameraMeasurements: Used to measure distances on the screen (in microns) by left and right clicking.
-- CameraProtocol: Abstract camera class which defines the functions a camera needs to be used by the main interface.
-- TestCamera: A camera that class used for testing which outputs white images consisting of white noise.
+- CameraClicks: Used to set the area of interest of the camera by clicking and dragging on the 
+screen
+- CameraMeasurements: Used to measure distances on the screen (in microns) by left and right 
+clicking.
+- CameraProtocol: Abstract camera class which defines the functions a camera needs to be used by the
+main interface.
+- TestCamera: A camera that class used for testing which outputs white images consisting of white
+noise.
 - CameraThread: The thread which is used to continously capture images using the camera.
 - VideoFormatError: Error sent if an unrecognised video format is selected.
 - VideoWriterThread: Thread that when requested writes the recorded images to a video.
