@@ -14,7 +14,7 @@ Here, we provide lists of the components you need to assemble your own system al
 The components of the system are split into separate units, instrument, electronics controller etc. Files listing the different components are found in the components folder.
 
 ### Assembly instructions
-The assembly of the instrument is outlined in the FullAssembly video (). 
+The assembly of the instrument is outlined in the [FullAssembly video](<Supplementary Videos/FullAssembly.mp4>). 
 
 ## Electronics
 The optical tweezers instrument is controlled by a custom electronics controller. This controller consists of 3 separate circuit boards (PCBs) which are connected together via ribbon cables.
