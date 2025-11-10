@@ -1,6 +1,5 @@
 # Contains the neural networks used in the SmartTrap system.
-Place this folder in the same folder as the main.py for the system to automatically find the networks
-
+Place this folder in the same folder as the main.py for the system to automatically find the networks. The folder should be called NeuralNetworks.
 
 ## Retraining the YOLO network
 If your system, or particles, are very different from the original SmartTrap you may need to re-train the object detection network to achieve accurate tracking.
@@ -20,3 +19,7 @@ Open a command prompt and navigate to the installation folder. Run the command
  - yolo train model=yolov5n.pt data=TrainingYOLO.yaml epochs=100 imgsz=640
 
 Where the TrainingYOLO.yaml is the file which specifies where the training data is placed and which classes to use. An example of this file is uploaded to this GitHub.
+## Focal position prediction network
+The file with weights for the focal position network is too large (130 Mb) to host in github. Instead you can download them from our OneDrive
+[here](<https://gunet-my.sharepoint.com/:u:/g/personal/martin_selin_gu_se/EdVVgLlzXXJIrPBgRyKFyUkBOrFAUpYH9q3BJUx0UXnAvg?e=Lmdhxm>)
+After downloading the weights file put it in the NeuralNetworks folder.
