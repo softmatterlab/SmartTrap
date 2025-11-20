@@ -1,10 +1,11 @@
+/*
+This file contains the necessary functions and definistions for interfacing the motors
+*/
 #include <Portenta_H7_PWM.h> 
-
-// TODO create a motor object with the required pins or at the very least put all the pins in corresponding arrays.
 
 // Define PWM PINS
 #define MOTOR_X_PWM D6     // PWM0
-#define MOTOR_Y_PWM D2     // PWM4 // won't allow me to use PWM3
+#define MOTOR_Y_PWM D2     // PWM4 // won't allow usage of PWM3
 #define MOTOR_Z_PWM D0     // PWM6
 
 // Define motor channels pins(for position)
@@ -16,44 +17,49 @@
 #define MotorZChA PG_3     // GPIO 5
 #define MotorZChB PG_10    // GPIO 6
 
-// MOTOR direction pins
+// Motor direction pins
 #define Motor_X_dir1 PC_6  //UART0_TX //PWM1 pin   //PREV D4  // works, located at PWM5 pin
 #define Motor_X_dir2 PC_7  //UART0_RX //PWM2 pin   //PREV A0
-#define Motor_Y_dir1 D3    //PWM 3, PWM3 didn't work as output, donät know why.
-#define Motor_Y_dir2 PK_1  //PWM 5 // D13 works, located at uart1 RX. VALUE OF D13 IS 13, NEED TO CHECK which pin is which on breakout.
-#define Motor_Z_dir1 PJ_7  //PWM7 // GPIO_1
+#define Motor_Y_dir1 D3    //PWM 3, PWM3 didn't work as output, unclear why.
+#define Motor_Y_dir2 PK_1  //PWM 5
+#define Motor_Z_dir1 PJ_7  //PWM7
 #define Motor_Z_dir2 PJ_10 //PWM8
+
+// Motor limit pins
+#define MOTOR_X_FWD_LIM PH_7
+#define MOTOR_X_REV_LIM PH_7
+#define MOTOR_Y_FWD_LIM PA_9
+#define MOTOR_Y_REV_LIM PA_10
+#define MOTOR_Z_FWD_LIM PA_99
+#define MOTOR_Z_REV_LIM PA_99
 
 // Fixed parameters
 #define MAX_FREQ 10000.0f
 #define DUTY_CYCLE_MAX 100.0f
 #define DUTY_CYCLE_MIN 3.0f
 #define MOVE_THRESHOLD 2
-//#define SPEED_SCALE = 0.000000125f//1.25e-07 // 1/8000000
+
 // PID parameters
-#define K_P 5000.0f // 10_000f
-#define K_I 0.0f // 0 previously
-#define K_D 2000.0f // 1000 previously.
+#define K_P 5000.0f
+#define K_I 0.0f 
+#define K_D 2000.0f
 
 #define K_P_position 0.08f
 #define K_D_position 0.08f
-
+#define NUM_OF_PINS (sizeof(motorPWMPins) / sizeof(uint32_t))
 
 uint32_t motorDir1Pins[3] = { Motor_X_dir1, Motor_Y_dir1, Motor_Z_dir1 };
 uint32_t motorDir2Pins[3] = { Motor_X_dir2, Motor_Y_dir2, Motor_Z_dir2 };
 uint32_t motorPWMPins[3] = { MOTOR_X_PWM, MOTOR_Y_PWM, MOTOR_Z_PWM };
 
-#define NUM_OF_PINS (sizeof(motorPWMPins) / sizeof(uint32_t))
-
-// float dutyCycle[] = { 0.0f, 0.0f, 0.0f };  // Set to zero later
 int motorMoveDirections[] = { 0, 0, 0 };  //+1 forward, -1 backward 0 stop
+long motorPreviousPositions[] = { 32768, 32768, 32768 };
 
-long motorPreviousPositions[] = { 32768, 32768, 32768 };  // int should be enough
+//convert from double to something in the same order as the typical ticks/microseconds of moving motor
+const double SPEED_SCALE = 8000000.0f; 
 
-const double SPEED_SCALE = 8000000.0f; // was 8000000.0f; with old algorithm //ol value was 25500000.0f; // convert from double to something in the same order as the typical ticks/microseconds of moving motor
-
-unsigned long curTime[] = { 0, 0, 0 };
-unsigned long prevTime[] = { 0, 0, 0 };
+unsigned long curTime[] = {0, 0, 0 };
+unsigned long prevTime[] = {0, 0, 0 };
 long dt = 1;
 double ds = 0;  // speed error, delta speed
 
@@ -67,7 +73,6 @@ int dist = 0;
 int moveDist = 0; // distance to target position
 
 // Error terms for PID
-
 long motorTargetSpeedsPosition[3] = {0, 0, 0};
 double integralError[3] = {0, 0, 0}; 
 
@@ -80,6 +85,9 @@ long getDt() {
 
 
 void initiateInterrupts() {
+  /*
+  Initiate the interrupts which trigger on the motor movement
+  */
 
   for (uint8_t i = 0; i < 3; i++) {
     pinMode(motorDir1Pins[i], OUTPUT);  // something wrong with these actions?
@@ -134,8 +142,7 @@ void Z_CHA_trig() {
   }
 }
 
-void moveForward(uint8_t motor_id) {
-  // TODO check which is forward and which is backward
+void moveForward(uint8_t motor_id) {  
   if (motor_id == 0){
     digitalWrite(Motor_X_dir2, HIGH);
     digitalWrite(Motor_X_dir1, LOW); 
@@ -153,7 +160,6 @@ void moveForward(uint8_t motor_id) {
 }
 
 void moveBackward(uint8_t motor_id) {
-    // TODO replace digital write and read with direct registry manipulations.
     if (motor_id == 0){
     digitalWrite(Motor_X_dir2, LOW);
     digitalWrite(Motor_X_dir1, HIGH); 
@@ -187,11 +193,15 @@ void stopMotor(uint8_t motor_id) {
   }
 }
 
-void update_motor(uint8_t motor_id) {
-  curTime[motor_id] = micros();  // change to millis?, micros seem to return a 12 bit number...
+void updateMotor(uint8_t motor_id) {
+  curTime[motor_id] = micros();
   dt = curTime[motor_id] - prevTime[motor_id];
+  if (!USB_connected){
+    stopMotor(motor_id);
+    return;
+  }
 
-  if (dt == 0) { 
+  if (dt == 0){ 
     // function called to soon, avoid division by 0 error or that we have not yet moved
     return;
   }
@@ -210,7 +220,7 @@ void update_motor(uint8_t motor_id) {
     motorSpeeds[motor_id] = -motorSpeeds[motor_id];
   }
   
-  // TODO add a parameter in in_buffer that tells us if we are doing a move to target on the portenta or we are doing a move at constant speed.
+  
   if (inBuffer[42]==0){
     /*
     By default this is the way the motors are moved, i.e move to target with a target position, if you want to use other moves then set inBuffer[42] = 1
@@ -219,15 +229,12 @@ void update_motor(uint8_t motor_id) {
     if (motor_id==0){
       dist_diff = motorPositions[motor_id] - targetPositions[motor_id]; // y goes in the correct direction but does not stop
     }
-    else{//} if(motor_id==1){
+    else{
       dist_diff = targetPositions[motor_id] - motorPositions[motor_id]; // y goes in the correct direction but does not stop
     }
-
-    // (a > b) ? a : b; // max 
     
-    if (dist_diff > MOVE_THRESHOLD){// TODO test reducing the movement lim to make smaller moves possible.
-      // TODO add adaptive speed here and a max speed parameter to be set in GUI. Perhaps use the same as motor target speed.
-      long speed_ = dist_diff*30+340; // *20 + 340
+    if (dist_diff > MOVE_THRESHOLD){
+      long speed_ = dist_diff*30+340;
       motorTargetSpeeds[motor_id] = (speed_ < max_speed) ? speed_ : max_speed;
     }
     else if(dist_diff < -MOVE_THRESHOLD){
@@ -241,13 +248,14 @@ void update_motor(uint8_t motor_id) {
   
   // Set move direction
   updateMoveDirection(motor_id);
-
   update_PID_speed(motor_id, dt);
 }
 
 void updateMoveDirection(uint8_t motor_id) {
-  if (motorTargetSpeeds[motor_id] == 0) {
-    // TODO carefully consider if this should be here or somewhere else.
+  /*
+  Updates the movement direction of the motor.
+  */
+  if (motorTargetSpeeds[motor_id] == 0) {    
     stopMotor(motor_id);
     dutyCycle[motor_id] = 0;
     setPWM_DCPercentage_manual(motor_pwm[motor_id], motorPWMPins[motor_id], dutyCycle[motor_id]);
@@ -263,8 +271,12 @@ void updateMoveDirection(uint8_t motor_id) {
   }
 }
 
-// Updated to include the I an D parameters using ChatGPT
+
 void update_PID_speed(uint8_t motor_id, uint8_t dt) {
+  /*
+  Updates the motor duty cycle using a PID algorithm
+  */
+
   double speedTarget = 0;
   if (motorTargetSpeeds[motor_id] > 0) {
     speedTarget = double(motorTargetSpeeds[motor_id]) / SPEED_SCALE;
@@ -321,39 +333,9 @@ void updateMotorControl(uint8_t motor_id, uint8_t dt) {
     } else {
         stopMotor(motor_id);
     }
-    // Apply the duty cycle to the motor
-    //setPWM_DCPercentage_manual(motor_pwm[motor_id], motorPWMPins[motor_id], dutyCycle[motor_id]);
 }
 
 // Utility function to map values (similar to Arduino map function)
 long mapSpeed2DutyCycle(long x, long in_min, long in_max, long out_min, long out_max) {
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
-
-
-
-
-
-/*
-void update_PID_speed(uint8_t motor_id) {
-  double speedTarget = 0;
-  if (motorTargetSpeeds[motor_id] > 0) {
-    // error in speed?
-    speedTarget = double(motorTargetSpeeds[motor_id]) / SPEED_SCALE;
-  } else {
-    // Is this code ever reached?
-    speedTarget = -double(motorTargetSpeeds[motor_id]) / SPEED_SCALE;
-  }
-  ds = motorSpeeds[motor_id] - speedTarget;
-  dutyCycle[motor_id] = dutyCycle[motor_id] - ds * k_p; // todo add also I and D in the PID algorithm.
-
-  if (dutyCycle[motor_id] < DUTY_CYCLE_MIN) {
-    dutyCycle[motor_id] = DUTY_CYCLE_MIN;
-  }
-  if (dutyCycle[motor_id] > DUTY_CYCLE_MAX) {
-    dutyCycle[motor_id] = DUTY_CYCLE_MAX;
-  }
-
-  setPWM_DCPercentage_manual(motor_pwm[motor_id], motorPWMPins[motor_id], dutyCycle[motor_id]);
-}
-/*
