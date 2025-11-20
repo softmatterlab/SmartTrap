@@ -77,14 +77,17 @@ def default_c_p():
            'filename': 'measurement_',
            'video_name': 'Video',
            'video_format': 'avi',
+           'available_video_formats': ['avi','mp4','npy'],
            'image_format': 'png',
+           'available_image_formats': ['png','jpg','npy'],
+           'data_file_format': 'npy',
+           'available_data_formats': ['npy','csv','h5'],
            'image_gain': 1, 
            'image_offset': 0,
            'AOI':[0,1000,0,1000], # Area of interest of camera
            'target_AOI':[0,1000,0,1000], # Target area of interest of camera 
            # (not all cameras accept all AOIs even if they fit the sensor)
-           'recording_path': 'TestData/',
-           'data_file_format': 'dictionary', # Options are csv, dictionary and xlsx.
+           'recording_path': 'TestData/',           
            'bitrate': '30000000', # Bitrate of video to be saved
            'frame_queue': Queue(maxsize=2_000_000),  # Frame buffer essentially
            'image_scale': 1,
@@ -203,6 +206,7 @@ def default_c_p():
             'search_and_trap': False,
             'focus_z_trap_pipette': False, # Focus the particle in the trap with the one in the
             # pipette parameters for focusing pipette
+            'drop_particle': False,
             'center_pipette': False,
             'suck_into_pipette': False, # used to suck particle into pipette.
             'move_to_pipette_tip': False,
@@ -346,7 +350,8 @@ class DataChannel:
     unit: str
     data: np.array
     saving_toggled: bool = True
-    max_len: int = 10_000_000 # 10_000_000 default
+    sample_rate: float = 15625 # Default sample rate for any channel
+    max_len: int = 10_000_000 # 1_000_000 default
     index: int = 0
     full: bool = False
     max_retrivable: int = 1 # number of datapoints which have been saved.
@@ -405,29 +410,29 @@ def get_data_dicitonary_smarttrap():
     """
 
     data = [
-    ['Time', 'Seconds', False], # Time measured by the computer.
-    ['prediction_time','microseconds', True],
-    ['particle_trapped','(bool)', False],
-    ['trapped_particle_x_position','microns', True],
-    ['trapped_particle_y_position','microns', True],
-    ['trapped_particle_z_position','microns', True],
-    ['trapped_x_force', 'pN', True],
-    ['trapped_y_force', 'pN', True],
-    ['trapped_particle_radii','microns', True],
-    ['particle_in_pipette','(boolish)', False], # Can take values,1,2,0 - 1 No particle in pipette, 
-    # 2- particle in pipette, 0 no pipette visible
-    ['pipette_particle_x_position','microns', True],
-    ['pipette_particle_y_position','microns', True],
-    ['pipette_particle_z_position','microns', True],
-    ['pipette_particle_radii','microns', True],
-    ['Temperature', 'Celsius', False],
-    ['Motor_x_pos', 'ticks', True],
-    ['Motor_y_pos','ticks', True],
-    ['Motor_z_pos', 'ticks', True],
-    ['Motor_x_speed','microns/s', True],
-    ['Motor_y_speed','microns/s', True],
-    ['Motor_z_speed','microns/s', True],
-    ['Motor time','microseconds', True],
+    # ['Time', 'Seconds', False], # Time measured by the computer.
+    # ['prediction_time','microseconds', True],
+    # ['particle_trapped','boolean', False],
+    # ['trapped_particle_x_position','microns', True],
+    # ['trapped_particle_y_position','microns', True],
+    # ['trapped_particle_z_position','microns', True],
+    # ['trapped_x_force', 'pN', True],
+    # ['trapped_y_force', 'pN', True],
+    # ['trapped_particle_radii','microns', True],
+    # ['particle_in_pipette','bool', False], # Can take values,1,2,0 - 1 No particle in pipette, 
+    # # 2- particle in pipette, 0 no pipette visible
+    # ['pipette_particle_x_position','microns', True],
+    # ['pipette_particle_y_position','microns', True],
+    # ['pipette_particle_z_position','microns', True],
+    # ['pipette_particle_radii','microns', True],
+    # ['Temperature', 'Celsius', False],
+    # ['Motor_x_pos', 'ticks', True],
+    # ['Motor_y_pos','ticks', True],
+    # ['Motor_z_pos', 'ticks', True],
+    # ['Motor_x_speed','microns/s', True],
+    # ['Motor_y_speed','microns/s', True],
+    # ['Motor_z_speed','microns/s', True],
+    # ['Motor time','microseconds', True],
     ['PSD_A_P_X','bits', True],
     ['PSD_A_P_Y','bits', True],
     ['PSD_A_P_sum','bits', True],
@@ -474,9 +479,48 @@ def get_data_dicitonary_smarttrap():
     ['dac_by','bits', False],
     ]
 
+    # These channels are not sampled as frequently which is relevant when plotting and saving data
+
     data_dict = {}
     for channel in data:
         data_dict[channel[0]] = DataChannel(channel[0], channel[1], [0], channel[2])
+
+    sample_rate = 1116
+    data_motor = [
+    ['Motor_x_pos', 'ticks', True],
+    ['Motor_y_pos','ticks', True],
+    ['Motor_z_pos', 'ticks', True],
+    ['Motor_x_speed','microns/s', True],
+    ['Motor_y_speed','microns/s', True],
+    ['Motor_z_speed','microns/s', True],
+    ['Motor time','microseconds', True],
+    ]
+    for channel in data_motor:
+        data_dict[channel[0]] = DataChannel(channel[0], channel[1], [0], channel[2],sample_rate)
+    
+    # TODO move this to a separate data dictionary
+    sample_rate_tracking = 30
+    data_tracked = [
+        ['prediction_time','microseconds', True],
+        ['particle_trapped','boolean', False],
+        ['trapped_particle_x_position','microns', True],
+        ['trapped_particle_y_position','microns', True],
+        ['trapped_particle_z_position','microns', True],
+        ['trapped_x_force', 'pN', True],
+        ['trapped_y_force', 'pN', True],
+        ['trapped_particle_radii','microns', True],
+        ['particle_in_pipette','bool', False], # Can take values,1,2,0 - 1 No particle in pipette, 
+        # 2- particle in pipette, 0 no pipette visible
+        ['pipette_particle_x_position','microns', True],
+        ['pipette_particle_y_position','microns', True],
+        ['pipette_particle_z_position','microns', True],
+        ['pipette_particle_radii','microns', True],
+        ['Time', 'Seconds', False], # Time measured by the computer. Currently not used
+
+    ]
+    for channel in data_tracked:
+        data_dict[channel[0]] = DataChannel(channel[0], channel[1], [0], channel[2],sample_rate_tracking)
+    
     return data_dict
 
 

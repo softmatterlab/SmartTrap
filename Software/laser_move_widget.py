@@ -123,7 +123,7 @@ class LaserPiezoWidget(QWidget):
         self.set_calibration_factors_button.clicked.connect(self.set_calibration_factors)
         self.set_calibration_factors_button.setCheckable(False)
         self.set_calibration_factors_button.setToolTip("Set the calibration factors for " \
-        "PSD-to-force conversion on controller.\n Needed for accurate force measurements.")
+        "PSD-to-force conversion on the controller.\n Needed for accurate force measurements.")
         layout.addWidget(self.set_calibration_factors_button)
         
 

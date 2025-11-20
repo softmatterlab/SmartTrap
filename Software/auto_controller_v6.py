@@ -2867,6 +2867,9 @@ class AutoControllerThread(Thread):
         self.data_channels['prediction_time'].put_data(self.data_channels['T_time'].get_data(1))
 
     def analyze_frame(self):
+        if self.c_p['image'] is None:
+            # The image was not captured yet
+            return
         try:
             self.object_tracker.analyze_frame(self.c_p['image'])
         except Exception as e:

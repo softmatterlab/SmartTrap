@@ -469,8 +469,7 @@ class MainWindow(QMainWindow):
         config = get_defualt_config()
         for key in config:
             self.c_p[key] = config[key]
-
-        # TODO move to config
+        
         self.data_channels = get_data_dicitonary_smarttrap()
         self.video_idx = 0
         self.data_idx = 0 # Index of data saved
@@ -484,8 +483,7 @@ class MainWindow(QMainWindow):
         else:
             self.camera, self.object_tracker, self.motor_controller, self.objective_motor, \
             self.laser_A, self.laser_B, self.microfluidics_controller, self.valve_controller, \
-            self.pipette_pump, self.instrument_driver = create_devices(self.c_p, self.data_channels)
-            # self.create_controllers()
+            self.pipette_pump, self.instrument_driver = create_devices(self.c_p, self.data_channels)            
         self.start_threads()
         self.plot_windows = None
 
@@ -734,10 +732,7 @@ class MainWindow(QMainWindow):
 
         # Create submenu for setting recording(video) format
         format_submenu = file_menu.addMenu("Recording format")
-        video_formats = ['avi','mp4','npy']
-
-        for f in video_formats :
-
+        for f in self.c_p['available_video_formats']:
             format_command= partial(self.set_video_format, f)
             format_action = QAction(f, self)
             format_action.setStatusTip(f"Set recording format to {f}")
@@ -745,10 +740,8 @@ class MainWindow(QMainWindow):
             format_submenu.addAction(format_action)
 
         # Submenu for setting the image format
-        image_format_submenu = file_menu.addMenu("Image format")
-        image_formats = ['png','jpg','npy']
-        for f in image_formats:
-
+        image_format_submenu = file_menu.addMenu("Image format")        
+        for f in self.c_p['available_image_formats']:
             format_command= partial(self.set_image_format, f)
             format_action = QAction(f, self)
             format_action.setStatusTip(f"Set image format to {f}")
@@ -756,9 +749,8 @@ class MainWindow(QMainWindow):
             image_format_submenu.addAction(format_action)
 
         # Data recording format submenu
-        data_format_submenu = file_menu.addMenu("Data format")
-        data_formats = ['dictionary','csv','xlsx']
-        for f in data_formats:
+        data_format_submenu = file_menu.addMenu("Data format")        
+        for f in self.c_p['available_data_formats']:
             format_command= partial(self.set_data_format, f)
             format_action = QAction(f, self)
             format_action.setStatusTip(f"Set data format to {f}")
@@ -778,7 +770,7 @@ class MainWindow(QMainWindow):
 
         # Add command to save the data
         save_data_action = QAction("Save data", self)
-        save_data_action.setStatusTip("Save data to an npy file")
+        save_data_action.setStatusTip("Save data to file")
         save_data_action.triggered.connect(self.save_data_to_dict) # Dump data before
         file_menu.addAction(save_data_action)
     
@@ -807,8 +799,7 @@ class MainWindow(QMainWindow):
         Sets the starting indices for PSD, motor, and prediction data channels, and marks the saving
           state as active.
         """        
-        self.data_saver_thread.start_saving()
-        print("Saving started")
+        self.data_saver_thread.start_saving()        
 
     def stop_saving(self):
         """
@@ -825,8 +816,7 @@ class MainWindow(QMainWindow):
         The method ensures that data from all channels is synchronized as much as possible,
         and handles wrap-around cases where the stop index is less than the start index.
         """
-        self.data_saver_thread.stop_saving()
-        print("Saving stopped")
+        self.data_saver_thread.stop_saving()        
 
     def save_data_to_dict(self):
         """
@@ -938,11 +928,11 @@ class MainWindow(QMainWindow):
         self.c_p['PSD_means'][1] = 32768 + np.uint16(self.c_p['PSD_force_means'][1])
         self.c_p['PSD_means'][2] = 32768 + np.uint16(self.c_p['PSD_force_means'][2])
         self.c_p['PSD_means'][3] = 32768 + np.uint16(self.c_p['PSD_force_means'][3])
-        print(self.c_p['PSD_means'][0], self.c_p['PSD_force_means'][0])
+        # print(self.c_p['PSD_means'][0], self.c_p['PSD_force_means'][0])
         
         self.c_p['portenta_command_1'] = 1
 
-        # Zeroin the Z force by resetting the null offset
+        # Zero the Z force by resetting the null offset
         self.c_p['Photodiode_sum_to_force'][2] -= np.mean(
             self.data_channels['F_total_Z'].get_data_spaced(1000))
 
@@ -1198,7 +1188,7 @@ class MainWindow(QMainWindow):
         self.c_p['image_format'] = image_format
         
     def set_data_format(self, data_format):
-        self.c_p['data_format'] = data_format
+        self.c_p['data_file_format'] = data_format
 
     def set_video_name(self, string):
         self.c_p['video_name'] = string
@@ -1435,7 +1425,7 @@ class MainWindow(QMainWindow):
 
         self.snapshot_action = QAction("Snapshot", self)
         self.snapshot_action.setToolTip("Take snapshot of camera view.\n CTRL+S")
-        self.snapshot_action.triggered.connect(self.data_saver_thread.snapshot) # TODO test this
+        self.snapshot_action.triggered.connect(self.data_saver_thread.snapshot)
         self.snapshot_action.setCheckable(False)    
         # Create a shortcut and connect it to a custom method
         self.snapshot_action.setShortcut(QKeySequence(Qt.Modifier.CTRL | Qt.Key.Key_S))

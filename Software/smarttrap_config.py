@@ -23,7 +23,7 @@ def get_defualt_config():
     """
     config = {
         ############### Ports #########################
-        'COM_port': 'COM4', # COM port used with the tweezers controller
+        'COM_port': 'COM8', # COM port used with the tweezers controller
         'objective_stepper_port': 'COM10',
         'laser_A_port':'COM12',
         'laser_B_port':'COM11',
@@ -211,27 +211,32 @@ def create_devices(c_p, data_channels):
     laser_B.connect(c_p['laser_A_port'])
 
     # Set up the microfluidics controllers
-    from elvesys_pump import (
-        ElvesysMicrofluidicsController, MUXWireValveController, PipettePump)
-    microfluidics_controller = ElvesysMicrofluidicsController()
     try:
+
+        from elvesys_pump import (
+            ElvesysMicrofluidicsController, MUXWireValveController, PipettePump)
+        microfluidics_controller = ElvesysMicrofluidicsController()
         microfluidics_controller.connect(c_p['pump_adress'])
     except Exception as E:
         print(E)
         print("Could not connect to the microfluidics pump")
-
-    valve_controller = MUXWireValveController()
+        from microfluidics_controllers import TestMicrofluidicsController
+        microfluidics_controller = TestMicrofluidicsController()
     try:
+        valve_controller = MUXWireValveController()
         valve_controller.connect(c_p['valve_adress'])
-    except Exception as E:
+    except Exception as E:        
+        from microfluidics_controllers import TestValveController
         print(E)
+        valve_controller = TestValveController()
         print("Could not connect to the valve controller")
-
-    pipette_pump = PipettePump()
     try:
+        pipette_pump = PipettePump()    
         pipette_pump.connect(c_p['pipette_pump_adress'])
     except Exception as E:
         print(E)
+        from microfluidics_controllers import TestPipettePump
+        pipette_pump = TestPipettePump()
         print("Could not connect to the pipette pressure controller")
     
     from smarttrap_driver import SmartTrapDriver

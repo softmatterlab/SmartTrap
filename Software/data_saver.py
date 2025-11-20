@@ -16,6 +16,7 @@ import os
 import pandas as pd
 import abc
 import cv2
+import h5py
 
 class SaverThreadInterface(abc.ABC, Thread):
     @abc.abstractmethod
@@ -50,29 +51,87 @@ class DataSaverThread(SaverThreadInterface):
         self.start_idx_prediction = 0
         self.saving = False
         self.data_idx = 0
+        self.max_sample_rate = 1000
+        self.save_indices = {}
 
-    def start_saving(self):
-        self.start_idx = self.data_channels['PSD_A_P_X'].index
-        # Fewer data points for motors and the real-time tracking
-        self.start_idx_motors = self.data_channels['Motor_x_pos'].index 
-        self.start_idx_prediction = self.data_channels['trapped_particle_x_position'].index
+        for key in data_channels:
+            sample_rate = data_channels[key].sample_rate
+            self.max_sample_rate = max(self.max_sample_rate, sample_rate) 
+            if not sample_rate in self.save_indices:
+                self.save_indices[sample_rate] = [key, 0,0] # Name of first channel with this sample rate and corresponding data index
+            self.max_save = int(data_channels[key].max_len*0.5)
+        print(f"Max save is {self.max_save}")
+        
+    
+    def set_saving_indices(self, index=1):
+        """
+        Saves the current indices of the various data channels.
+        The index parameter indicates if it is to be saved in the first or last slot for saving. e.g
+        setting index=1 indicates saving start index and index=2 indicates the last
+        """
+        for sample_rate in self.save_indices:
+            data_channel_name = self.save_indices[sample_rate][0]
+            # Set save index of the data channel
+            self.save_indices[sample_rate][index] = self.data_channels[data_channel_name].index
+
+    def set_filename(self):
+        self.filename = self.c_p['recording_path'] + '/' + self.c_p['filename'] + str(self.data_idx) +"."+self.c_p['data_file_format']
+
+    def start_saving(self):        
+        self.set_saving_indices(1)
+        
+        self.set_saving_indices(2)
+
         self.saving = True
-        self.data_idx += 1
-        self.filename = self.c_p['recording_path'] + '/' + self.c_p['filename'] + str(self.data_idx)
-
+        # self.data_idx += 1
+        self.set_filename()
         print("Saving started")
 
-    def save_data(self):
-            # Convert data to DataFrame
-            df_new = pd.DataFrame(self.get_data_dict())
+    def save_csv_data(self, data):
+        # Convert data to DataFrame
+        max_len = max(len(v) for v in data.values())
 
-            # Append mode for CSV
-            if not os.path.exists(self.filename):
-                # Create new file and write headers
-                df_new.to_csv(self.filename, mode='w', index=False)  
-            else:
-                # Append without headers
-                df_new.to_csv(self.filename, mode='a', header=False, index=False)
+        # Pad all arrays with NaN
+        padded_data = {}
+        max_len = max(len(v) if hasattr(v, '__len__') else 1 for v in data.values())
+
+        for k, v in data.items():
+            v_list = list(v) if hasattr(v, '__len__') else [v]
+            padded_data[k] = v_list + [np.nan] * (max_len - len(v_list))
+        df_new = pd.DataFrame(padded_data)
+
+        # Append mode for CSV
+        if not os.path.exists(self.filename):
+            # Create new file and write headers
+            df_new.to_csv(self.filename, mode='w', index=False)  
+        else:
+            # Append without headers
+            df_new.to_csv(self.filename, mode='a', header=False, index=False)
+
+    def save_hdf5_data(self, data):
+        if not os.path.exists(self.filename):
+            with h5py.File(self.filename, 'w') as f:
+                for key, arr in data.items():
+                    f.create_dataset(
+                        key,
+                        data=arr,
+                        maxshape=(None,) + arr.shape[1:],  # allow growth along axis 0
+                        chunks=True
+                    )
+        else:
+            with h5py.File(self.filename, 'a') as f:  # 'a' = append/update mode
+                for key, arr in data.items():
+                    dset = f[key]
+                    old_len = dset.shape[0]
+                    new_len = old_len + arr.shape[0]
+                    dset.resize((new_len,) + dset.shape[1:])
+                    dset[old_len:new_len] = arr
+
+    def save_numpy_data(self,data):
+        self.data_idx += 1
+        self.set_filename()
+        with open(self.filename, 'wb') as f:
+            pickle.dump(data, f)
 
     def is_saving(self):
         return self.saving
@@ -96,35 +155,37 @@ class DataSaverThread(SaverThreadInterface):
         self.c_p['image_idx'] += 1
 
     def get_data_dict(self):
-        self.stop_idx = self.data_channels['PSD_A_P_X'].index
-        self.stop_idx_motors = self.data_channels['Motor_x_pos'].index
-   
+        # Set the stop indices
+        self.set_saving_indices(2) 
+
         sleep(0.1) # Waiting for all channels to reach this point
+
+
         data = {}
+        for sample_rate in self.save_indices:
+            if self.save_indices[sample_rate][1] == self.save_indices[sample_rate][2]:
+                self.save_indices[sample_rate][2] += 1
 
         for channel in self.data_channels:
             if self.data_channels[channel].saving_toggled:
-                if (channel in self.c_p['multi_sample_channels'] 
-                    or channel in self.c_p['derived_PSD_channels']):
-                    if self.start_idx < self.stop_idx:
-                        data[channel] = self.data_channels[channel].data[\
-                            self.start_idx:self.stop_idx]
-                    else:
-                        data[channel] = np.concatenate(
-                            [self.data_channels[channel].data[self.start_idx:],
-                             self.data_channels[channel].data[:self.stop_idx]])
+                # Handle the different rates at which the channels are sampled to get the right data
+                # to be saved.
+                start_index = self.save_indices[self.data_channels[channel].sample_rate][1]
+                stop_index = self.save_indices[self.data_channels[channel].sample_rate][2]
+    
+                if start_index < stop_index:
+                    data[channel] = self.data_channels[channel].data[start_index:
+                                                                        stop_index]
                 else:
-                    if self.start_idx_motors < self.stop_idx_motors:
-                        data[channel] = self.data_channels[channel].data[\
-                            self.start_idx_motors:self.stop_idx_motors]
-                    else:
-                        data[channel] = np.concatenate(
-                            [self.data_channels[channel].data[self.start_idx_motors:],
-                             self.data_channels[channel].data[:self.stop_idx_motors]])
+                    data[channel] = np.concatenate(
+                        [self.data_channels[channel].data[start_index:],
+                            self.data_channels[channel].data[:stop_index]])
 
-        self.start_idx = self.stop_idx
-        self.start_idx_motors = self.stop_idx_motors
+        # Update the save indices so that the previous stop is the new start
+        for sample_rate in self.save_indices:
+            self.save_indices[sample_rate][1] = self.save_indices[sample_rate][2]
         return data
+
 
     def stop_saving(self):
         """
@@ -144,69 +205,33 @@ class DataSaverThread(SaverThreadInterface):
 
         self.saving = False
         print("Saving stopped")
-        self.stop_idx = self.data_channels['PSD_A_P_X'].index
-        self.stop_idx_motors = self.data_channels['Motor_x_pos'].index
-        self.stop_idx_prediction = self.data_channels['trapped_particle_x_position'].index
-        sleep(0.1) # Waiting for all channels to reach this point
-        data = {}
-
-        # QuickFIx to error which happens if one of the channels is not sampling correctly.
-        if self.start_idx == self.stop_idx:
-            self.stop_idx = self.stop_idx + 1
-
-        if self.start_idx_motors == self.stop_idx_motors:
-            self.stop_idx_motors = self.stop_idx_motors + 1
-
-        if self.start_idx_prediction == self.stop_idx_prediction:
-            self.stop_idx_prediction = self.stop_idx_prediction + 1
-
-        for channel in self.data_channels:
-            if self.data_channels[channel].saving_toggled:
-                # Handle the different rates at which the channels are sampled to get the right data
-                # to be saved.
-                if channel in self.c_p['multi_sample_channels'] or \
-                    channel in self.c_p['derived_PSD_channels']:
-
-                    if self.start_idx < self.stop_idx:
-                        data[channel] = self.data_channels[channel].data[self.start_idx:
-                                                                         self.stop_idx]
-                    else:
-                        data[channel] = np.concatenate(
-                            [self.data_channels[channel].data[self.start_idx:],
-                             self.data_channels[channel].data[:self.stop_idx]])
-
-                elif channel in self.c_p['prediction_channels']:
-                    if self.start_idx_prediction < self.stop_idx_prediction:
-                        data[channel] = self.data_channels[channel].data[
-                            self.start_idx_prediction:self.stop_idx_prediction]
-                    else:
-                        data[channel] = np.concatenate(
-                            [self.data_channels[channel].data[self.start_idx_prediction:],
-                             self.data_channels[channel].data[:self.stop_idx_prediction]])
-                else:
-                    if self.start_idx_motors < self.stop_idx_motors:
-                        data[channel] = self.data_channels[channel].data[
-                            self.start_idx_motors:self.stop_idx_motors]
-                    else:
-                        data[channel] = np.concatenate(
-                            [self.data_channels[channel].data[self.start_idx_motors:],
-                             self.data_channels[channel].data[:self.stop_idx_motors]])
-
-        filename = self.c_p['recording_path'] + '/' + self.c_p['filename'] + str(self.data_idx)
+        data = self.get_data_dict()
+        # May need to offload this saving to a different process to improve performance
         if self.c_p['data_file_format'] == 'csv':
-            df = pd.DataFrame(data)
-            df.to_csv(filename + '.csv', index=False)
-        elif self.c_p['data_file_format'] == 'xlsx':
-            df = pd.DataFrame(data)
-            df.to_excel(filename + '.xlsx', index=False)
+            self.save_csv_data(data)
+        elif self.c_p['data_file_format'] == 'h5':
+            self.save_hdf5_data(data)
         else:
-            with open(filename, 'wb') as f:
-                    pickle.dump(data, f)
+            self.save_numpy_data(data)
         self.data_idx += 1 # Moved here from start saving
+
 
     def run(self):
         while self.c_p['program_running']:
             # Will implement continous saving here.
+            if self.saving:
+                # Check if we have moved far enough to save the data
+                key = self.save_indices[self.max_sample_rate][0]
+                start_index = self.save_indices[self.max_sample_rate][1]
+                data_index =self.data_channels[key].index
+                if data_index<start_index or (data_index-start_index)>self.max_save:                    
+                    data = self.get_data_dict()
+                    if self.c_p['data_file_format'] == 'csv':
+                        self.save_csv_data(data)
+                    elif self.c_p['data_file_format'] == 'h5':
+                        self.save_hdf5_data(data)
+                    else:
+                        self.save_numpy_data(data)
             sleep(self.sleep_time)
         if not self.c_p['program_running'] and self.saving:
             self.stop_saving()

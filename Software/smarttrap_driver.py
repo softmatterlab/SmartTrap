@@ -211,7 +211,7 @@ class SmartTrapDriver(InstrumentDriver):
             self.outdata[33] = BY & 0xFF
             
         self.outdata[25] = self.c_p['portenta_command_2']
-
+        # Sometimes 
         self.c_p['portenta_command_1'] = 0
         self.outdata[34] = self.c_p['blue_led']
         self.outdata[35:] = self.c_p['protocol_data']
