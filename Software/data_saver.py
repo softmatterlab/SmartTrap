@@ -127,6 +127,26 @@ class DataSaverThread(SaverThreadInterface):
                     dset.resize((new_len,) + dset.shape[1:])
                     dset[old_len:new_len] = arr
 
+    def save_mat_data(self, data):
+        """
+        Docstring for save_mat_data
+        This function saves the data in MATLAB .mat format.
+        If last_save is True, it will also create a final .mat file with all data combined.
+        Uses the H5PY library to save data in HDF5 format and then conver this to .mat format.
+        """
+        self.filename = self.c_p['recording_path'] + '/' + self.c_p['filename'] + str(self.data_idx) +".h5"
+        self.save_hdf5_data(data)
+        if not self.saving:
+            with h5py.File(self.filename, 'r') as f:
+                data_loaded = {key: f[key][()] for key in f.keys()}
+            # Delete the intermediate HDF5 file
+            os.remove(self.filename)
+            # Save the data in .mat format
+            from scipy.io import savemat
+            self.filename = self.c_p['recording_path'] + '/' + self.c_p['filename'] + str(self.data_idx) +".mat"            
+            savemat(self.filename, data_loaded)           
+
+
     def save_numpy_data(self,data):
         self.data_idx += 1
         self.set_filename()
@@ -211,6 +231,8 @@ class DataSaverThread(SaverThreadInterface):
             self.save_csv_data(data)
         elif self.c_p['data_file_format'] == 'h5':
             self.save_hdf5_data(data)
+        elif self.c_p['data_file_format'] == 'mat':
+            self.save_mat_data(data)        
         else:
             self.save_numpy_data(data)
         self.data_idx += 1 # Moved here from start saving
@@ -230,6 +252,8 @@ class DataSaverThread(SaverThreadInterface):
                         self.save_csv_data(data)
                     elif self.c_p['data_file_format'] == 'h5':
                         self.save_hdf5_data(data)
+                    elif self.c_p['data_file_format'] == 'mat':
+                        self.save_mat_data(data)
                     else:
                         self.save_numpy_data(data)
             sleep(self.sleep_time)

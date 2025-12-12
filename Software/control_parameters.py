@@ -81,7 +81,7 @@ def default_c_p():
            'image_format': 'png',
            'available_image_formats': ['png','jpg','npy'],
            'data_file_format': 'npy',
-           'available_data_formats': ['npy','csv','h5'],
+           'available_data_formats': ['npy','csv','h5','mat'],
            'image_gain': 1, 
            'image_offset': 0,
            'AOI':[0,1000,0,1000], # Area of interest of camera
