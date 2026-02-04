@@ -3,6 +3,9 @@ Material submitted from outside sources should bear the author's copyright notic
 
 For a few components we currently only provide step files, the materials to use for these are:
 The material for these are:
-  Chamber Holder Pin - Brass
-  PSD Holder Handle - Alluminum alloy
-The aperture iris button and the filter holder disc can be printed with a 3D printer (print in PLA or ABS dark plastic). Since many prints expand a little it may be necessary to decrease the size a little to get a tight fit. 
+  - Chamber Holder Pin - Brass
+  - PSD Holder Handle - Alluminum alloy
+  - Aperture iris button - Black plastic
+  - Filter holder disc - Black plastic
+
+Both the aperture iris button and the filter holder disc can be printed with a 3D printer (print in PLA or ABS dark plastic). Since many prints expand a little it may be necessary to decrease the size a little to get a tight fit. 
