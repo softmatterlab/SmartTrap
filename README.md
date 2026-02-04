@@ -260,6 +260,9 @@ The parameters used for the pulling may need to be tuned to optimize the shape o
 # Supplementary Videos
 The /Supplementary Videos folder contains 5 videos which showcase the capabilites of the SmartTrap system.
 
+# License
+This project is licensed under the MIT License - see the LICENSE file for details.
+
 # Cite us!
 You can find more information in our paper:
 <https://doi.org/10.48550/arXiv.2505.05290>
